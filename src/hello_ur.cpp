@@ -49,7 +49,8 @@ int main(int argc, char * argv[])
     "hello_moveit", rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true));
 
   // Create a ROS logger
-  auto const logger = rclcpp::get_logger("hello_moveit");
+  // auto const logger = rclcpp::get_logger("hello_moveit");
+  auto const logger = node->get_logger();
   const std::string arm_group = "ur_manipulator";
   const std::string base_link = "base_link";
 
@@ -69,6 +70,9 @@ int main(int argc, char * argv[])
     move_group_interface.getRobotModel()};
   moveit_visual_tools.deleteAllMarkers();
   moveit_visual_tools.loadRemoteControl();
+
+  // set velocity
+  move_group_interface.setMaxVelocityScalingFactor(1.0);
 
   // Create a closure for updating the text in rviz
   auto const draw_title = [&moveit_visual_tools](std::string text) {
@@ -129,45 +133,98 @@ int main(int argc, char * argv[])
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
   planning_scene_interface.applyCollisionObject(collision_object);
   ////////////////////////////////////////////
-  // Set a target Pose
-  auto const target_pose = [] {
-      geometry_msgs::msg::Pose msg;
-      msg.orientation.w = 0.0;
-      msg.orientation.x = 1.0;
-      msg.orientation.y = 0.0;
-      msg.orientation.z = 0.0;
-      msg.position.x = -0.625;
-      msg.position.y = 0.133;
-      msg.position.z = 0.614;
-      return msg;
-    }();
-
-  if (!planAndExecutePose(
-      target_pose, draw_title, prompt, draw_trajectory_tool_path,
-      move_group_interface))
-  {
-    RCLCPP_ERROR(logger, "Planning failed!");
+  moveit::core::RobotStatePtr current_state = move_group_interface.getCurrentState(10);
+  const moveit::core::JointModelGroup * joint_model_group =
+    move_group_interface.getCurrentState()->getJointModelGroup(arm_group);
+  // Next get the current set of joint values for the group.
+  std::vector<double> joint_group_positions;
+  current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
+  for (double q : joint_group_positions) {
+    RCLCPP_INFO_STREAM(logger, "q: " << q);
   }
-
-  auto const target_pose2 = [] {
-      geometry_msgs::msg::Pose msg;
-      msg.orientation.w = 0.0;
-      msg.orientation.x = 1.0;
-      msg.orientation.y = 0.0;
-      msg.orientation.z = 0.0;
-      msg.position.x = -0.56;
-      msg.position.y = 0.06;
-      msg.position.z = 0.25;
-
-      return msg;
-    }();
-
-  if (!planAndExecutePose(
-      target_pose2, draw_title, prompt, draw_trajectory_tool_path,
-      move_group_interface))
-  {
-    RCLCPP_ERROR(logger, "Planning failed!");
+  auto joint_name = joint_model_group->getActiveJointModelNames();
+  for (std::string name : joint_name) {
+    RCLCPP_INFO_STREAM(logger, "jnt: " << name);
   }
+  RCLCPP_INFO_STREAM(logger, "planning time: " << move_group_interface.getPlanningTime());
+  //move_group_interface.allowReplanning(true);
+  //move_group_interface.setReplanAttempts(5);
+
+  [&move_group_interface, &joint_group_positions]() {
+    joint_group_positions[0] = 0.0; // shoulder_pan_joint
+    joint_group_positions[1] = -2.689; //  shoulder_lift_joint
+    joint_group_positions[2] = 0.7441; // elbow_joint
+    joint_group_positions[3] = -2.768; //  wrist_1_joint
+    joint_group_positions[4] = 1.57; //  wrist_2_joint
+    joint_group_positions[5] = 1.57; // wrist_3_joint
+    move_group_interface.setJointValueTarget(joint_group_positions);
+    moveit::planning_interface::MoveGroupInterface::Plan plan;
+    if (move_group_interface.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS) {
+      move_group_interface.execute(plan);
+    }
+  } ();
+
+  [&move_group_interface, &joint_group_positions, &logger]() {
+    joint_group_positions[0] = 0.13249; // shoulder_pan_joint
+    joint_group_positions[1] = -1.8636;  //  shoulder_lift_joint
+    joint_group_positions[2] = -1.8725;  // elbow_joint
+    joint_group_positions[3] = -0.977; //  wrist_1_joint
+    joint_group_positions[4] = 1.57; //  wrist_2_joint
+    joint_group_positions[5] = 1.703; // wrist_3_joint
+    move_group_interface.setJointValueTarget(joint_group_positions);
+    moveit::planning_interface::MoveGroupInterface::Plan plan;
+    [&]()->void {
+      for (int i = 3; i > 0; i--) {
+        if (move_group_interface.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS) {
+          move_group_interface.execute(plan);
+          return;
+        }
+        RCLCPP_WARN_STREAM(logger, "try to replan");
+      }
+      RCLCPP_ERROR_STREAM(logger, "planning fail");
+    }();
+  } ();
+
+
+  // // Set a target Pose
+  // auto const target_pose = [] {
+  //     geometry_msgs::msg::Pose msg;
+  //     msg.orientation.w = 0.0;
+  //     msg.orientation.x = 1.0;
+  //     msg.orientation.y = 0.0;
+  //     msg.orientation.z = 0.0;
+  //     msg.position.x = -0.625;
+  //     msg.position.y = 0.133;
+  //     msg.position.z = 0.614;
+  //     return msg;
+  //   }();
+
+  // if (!planAndExecutePose(
+  //     target_pose, draw_title, prompt, draw_trajectory_tool_path,
+  //     move_group_interface))
+  // {
+  //   RCLCPP_ERROR(logger, "Planning failed!");
+  // }
+
+  // auto const target_pose2 = [] {
+  //     geometry_msgs::msg::Pose msg;
+  //     msg.orientation.w = 0.0;
+  //     msg.orientation.x = 1.0;
+  //     msg.orientation.y = 0.0;
+  //     msg.orientation.z = 0.0;
+  //     msg.position.x = -0.56;
+  //     msg.position.y = 0.06;
+  //     msg.position.z = 0.25;
+
+  //     return msg;
+  //   }();
+
+  // if (!planAndExecutePose(
+  //     target_pose2, draw_title, prompt, draw_trajectory_tool_path,
+  //     move_group_interface))
+  // {
+  //   RCLCPP_ERROR(logger, "Planning failed!");
+  // }
 
   // Shutdown ROS
   rclcpp::shutdown();
