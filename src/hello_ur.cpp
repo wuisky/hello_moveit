@@ -29,6 +29,25 @@ void findClosestSolution(
   }
 }
 
+void planAndExecuteJointValue(
+  const std::shared_ptr<rclcpp::Node> node,
+  const std::vector<double> & q, const int retry, MoveGroupInterface & move_group_interface)
+{
+  auto const logger = node->get_logger();
+  move_group_interface.setJointValueTarget(q);
+  moveit::planning_interface::MoveGroupInterface::Plan plan;
+  [&]()->void {
+    for (int i = retry; i > 0; i--) {
+      if (move_group_interface.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS) {
+        move_group_interface.execute(plan);
+        return;
+      }
+      RCLCPP_WARN_STREAM(logger, "try to replan");
+    }
+    RCLCPP_ERROR_STREAM(logger, "planning fail");
+  }();
+}
+
 bool planAndExecutePose(
   const geometry_msgs::msg::Pose & target_pose,
   const std::function<void(std::string)> draw_title,
@@ -265,21 +284,20 @@ int main(int argc, char * argv[])
   RCLCPP_INFO_STREAM(logger, "timeout " << joint_model_group->getDefaultIKTimeout());
   // joint_model_group->printGroupInfo(std::cout);
   RCLCPP_INFO_STREAM(logger, "timeout " << ik_solver->getDefaultTimeout());
-  std::vector<double> current_q;
-  current_state->copyJointGroupPositions(joint_model_group, current_q);
 
-  current_state->setToDefaultValues();
-  current_state->copyJointGroupPositions(joint_model_group, seed_state);
   ik_solver->getPositionIK(target_pose, seed_state, solution, err_code);
   //ik_solver->searchPositionIK(target_pose, seed_state, 0.05, solution, err_code);
   RCLCPP_INFO_STREAM(logger, "errcode: " << err_code.val);
-  findClosestSolution(current_q, joint_bonds, solution);
 
-  move_group_interface.setJointValueTarget(solution);
-  moveit::planning_interface::MoveGroupInterface::Plan plan;
-  if (move_group_interface.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS) {
-    move_group_interface.execute(plan);
+  if (err_code.val != moveit_msgs::msg::MoveItErrorCodes::SUCCESS) {
+    RCLCPP_FATAL_STREAM(logger, "IKERROR, errcode:" << err_code.val);
+    rclcpp::shutdown();
+    spinner.join();
+    return 1;
   }
+  findClosestSolution(seed_state, joint_bonds, solution);
+  planAndExecuteJointValue(node, solution, 30, move_group_interface);
+
 
   // if (!planAndExecutePose(
   //     target_pose, draw_title, prompt, draw_trajectory_tool_path,
@@ -309,24 +327,10 @@ int main(int argc, char * argv[])
   RCLCPP_INFO_STREAM(logger, "errcode: " << err_code.val);
 
   findClosestSolution(seed_state, joint_bonds, solution);
-  for (std::size_t i = 0; i < solution.size(); ++i) {
-    RCLCPP_INFO(logger, "solu %s: %f", joint_name[i].c_str(), solution[i]);
-  }
-
-  [&move_group_interface, &solution, &logger]() {
-    move_group_interface.setJointValueTarget(solution);
-    moveit::planning_interface::MoveGroupInterface::Plan plan;
-    [&]()->void {
-      for (int i = 30; i > 0; i--) {
-        if (move_group_interface.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS) {
-          move_group_interface.execute(plan);
-          return;
-        }
-        RCLCPP_WARN_STREAM(logger, "try to replan");
-      }
-      RCLCPP_ERROR_STREAM(logger, "planning fail");
-    }();
-  } ();
+  // for (std::size_t i = 0; i < solution.size(); ++i) {
+  //   RCLCPP_INFO(logger, "solu %s: %f", joint_name[i].c_str(), solution[i]);
+  // }
+  planAndExecuteJointValue(node, solution, 30, move_group_interface);
 
 
   // if (!planAndExecutePose(
