@@ -40,7 +40,7 @@ install(TARGETS
   hello_ur
   DESTINATION lib/${PROJECT_NAME})
 
-install(DIRECTORY launch rviz
+install(DIRECTORY launch rviz config
   DESTINATION share/${PROJECT_NAME}
 )
 

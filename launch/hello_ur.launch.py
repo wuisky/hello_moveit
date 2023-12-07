@@ -81,7 +81,7 @@ def get_robot_description_semantic():
 
 
 def get_robot_description_kinematics():
-    return PathJoinSubstitution([FindPackageShare('ur_moveit_config'), "config", "kinematics.yaml"])
+    return PathJoinSubstitution([FindPackageShare('hello_moveit'), "config", "kinematics.yaml"])
 
 
 def generate_launch_description():
