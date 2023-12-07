@@ -2,9 +2,14 @@
 #include <moveit/planning_scene_interface/planning_scene_interface.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
 
+#include <geometric_shapes/shape_operations.h>
+
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <thread>
+
+#include <tf2_eigen/tf2_eigen.h>
+
 
 using moveit::planning_interface::MoveGroupInterface;
 
@@ -158,18 +163,30 @@ int main(int argc, char * argv[])
 
       // Define the pose of the box (relative to the frame_id)
       geometry_msgs::msg::Pose box_pose;
-      box_pose.orientation.w = 0.707;
-      box_pose.orientation.x = 0.707;
-      box_pose.orientation.y = 0.0;
-      box_pose.orientation.z = 0.0;
-      box_pose.position.x = -0.79;
-      box_pose.position.y = 0.2;
-      box_pose.position.z = 0.47;
+      box_pose.orientation.w = 0.5;
+      box_pose.orientation.x = 0.5;
+      box_pose.orientation.y = 0.5;
+      box_pose.orientation.z = 0.5;
+      box_pose.position.x = -1.7;
+      box_pose.position.y = -0.5;
+      box_pose.position.z = -0.5;
 
-      collision_object.primitives.push_back(primitive);
-      collision_object.primitive_poses.push_back(box_pose);
+      //collision_object.primitives.push_back(primitive);
+      //collision_object.primitive_poses.push_back(box_pose);
       collision_object.operation = collision_object.ADD;
 
+      Eigen::Vector3d scale(0.001, 0.001, 0.001);
+      // std::string resource =
+      // "package://moveit_resources_panda_description/meshes/collision/hand.stl";
+      std::string resource =
+        "package://moveit_resources_panda_description/meshes/collision/Shelf_housed.STL";
+      shapes::Mesh * m = shapes::createMeshFromResource(resource, scale);
+      shape_msgs::msg::Mesh co_mesh;
+      shapes::ShapeMsg co_mesh_msg;
+      shapes::constructMsgFromShape(m, co_mesh_msg);
+      co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
+      collision_object.meshes.push_back(co_mesh);
+      collision_object.mesh_poses.push_back(box_pose);
       return collision_object;
     }();
 
@@ -213,7 +230,7 @@ int main(int argc, char * argv[])
   // current_state->setToDefaultValues();
   // double timeout = 0.1;
   // const Eigen::Isometry3d & end_effector_state = current_state->getGlobalLinkTransform(
-  //   "wrist_3_link");
+  //   move_group_interface.getEndEffectorLink());
   // bool found_ik = current_state->setFromIK(joint_model_group, end_effector_state, timeout);
 
   // // Now, we can print out the IK solution (if found):
@@ -264,26 +281,43 @@ int main(int argc, char * argv[])
   //   }();
   // } ();
 
-
-  // Set a target Pose
-  auto const target_pose = [] {
-      geometry_msgs::msg::Pose msg;
-      msg.orientation.w = 0.0;
-      msg.orientation.x = 1.0;
-      msg.orientation.y = 0.0;
-      msg.orientation.z = 0.0;
-      msg.position.x = -0.625;
-      msg.position.y = 0.133;
-      msg.position.z = 0.614;
-      return msg;
-    }();
-
   auto ik_solver = joint_model_group->getSolverInstance();
   std::vector<double> solution;
   moveit_msgs::msg::MoveItErrorCodes err_code;
   RCLCPP_INFO_STREAM(logger, "timeout " << joint_model_group->getDefaultIKTimeout());
   // joint_model_group->printGroupInfo(std::cout);
   RCLCPP_INFO_STREAM(logger, "timeout " << ik_solver->getDefaultTimeout());
+
+  // Set a target Pose
+  auto const target_pose = [] {
+      geometry_msgs::msg::Pose msg;
+      msg.orientation.w = 0.0;
+      msg.orientation.x = -0.707;
+      msg.orientation.y = 0.0;
+      msg.orientation.z = 0.707;
+      msg.position.x = -0.44;
+      msg.position.y = 0.026;
+      msg.position.z = 0.68;
+      return msg;
+    }();
+
+  // auto const offset = [] {
+  //     geometry_msgs::msg::Pose msg;
+  //     msg.orientation.w = 1.0;
+  //     msg.orientation.x = 0.0;
+  //     msg.orientation.y = 0.0;
+  //     msg.orientation.z = 0.0;
+  //     msg.position.x = 0.0;
+  //     msg.position.y = 0.0;
+  //     msg.position.z = 0.07;
+  //     return msg;
+  //   }();
+
+  // Eigen::Affine3d target_pose_aff, offset_aff;
+  // tf2::fromMsg(target_pose, target_pose_aff);
+  // tf2::fromMsg(offset, offset_aff);
+  // auto new_pose = tf2::toMsg(target_pose_aff * offset_aff.inverse());
+  // ik_solver->getPositionIK(new_pose, seed_state, solution, err_code);
 
   ik_solver->getPositionIK(target_pose, seed_state, solution, err_code);
   //ik_solver->searchPositionIK(target_pose, seed_state, 0.05, solution, err_code);
@@ -299,40 +333,33 @@ int main(int argc, char * argv[])
   planAndExecuteJointValue(node, solution, 30, move_group_interface);
 
 
-  // if (!planAndExecutePose(
-  //     target_pose, draw_title, prompt, draw_trajectory_tool_path,
-  //     move_group_interface))
-  // {
-  //   RCLCPP_ERROR(logger, "Planning failed!");
-  // }
-
+  //////////////////////////
   auto const target_pose2 = [] {
       geometry_msgs::msg::Pose msg;
       msg.orientation.w = 0.0;
-      msg.orientation.x = 1.0;
+      msg.orientation.x = -0.707;
       msg.orientation.y = 0.0;
-      msg.orientation.z = 0.0;
-      msg.position.x = -0.56;
-      msg.position.y = 0.06;
-      msg.position.z = 0.25;
+      msg.orientation.z = 0.707;
+      msg.position.x = -0.44;
+      msg.position.y = 0.052;
+      msg.position.z = 0.464;
 
       return msg;
     }();
 
   current_state = move_group_interface.getCurrentState(10);
   current_state->copyJointGroupPositions(joint_model_group, seed_state);
-
+  RCLCPP_INFO_STREAM(logger, "start");
   ik_solver->getPositionIK(target_pose2, seed_state, solution, err_code);
   //ik_solver->searchPositionIK(target_pose, seed_state, 0.05, solution, err_code);
-  RCLCPP_INFO_STREAM(logger, "errcode: " << err_code.val);
 
   findClosestSolution(seed_state, joint_bonds, solution);
-  // for (std::size_t i = 0; i < solution.size(); ++i) {
-  //   RCLCPP_INFO(logger, "solu %s: %f", joint_name[i].c_str(), solution[i]);
-  // }
   planAndExecuteJointValue(node, solution, 30, move_group_interface);
 
 
+  // for (std::size_t i = 0; i < solution.size(); ++i) {
+  //   RCLCPP_INFO(logger, "solu %s: %f", joint_name[i].c_str(), solution[i]);
+  // }
   // if (!planAndExecutePose(
   //     target_pose2, draw_title, prompt, draw_trajectory_tool_path,
   //     move_group_interface))
