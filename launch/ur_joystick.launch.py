@@ -36,7 +36,8 @@ from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (Command, FindExecutable, LaunchConfiguration,
                                   PathJoinSubstitution)
-from launch_ros.actions import Node
+from launch_ros.actions import ComposableNodeContainer, Node
+from launch_ros.descriptions import ComposableNode
 from launch_ros.substitutions import FindPackageShare
 from ur_moveit_config.launch_common import load_yaml
 
@@ -56,10 +57,7 @@ def launch_setup(context, *args, **kwargs):
     description_file = LaunchConfiguration("description_file")
     moveit_config_package = LaunchConfiguration("moveit_config_package")
     moveit_config_file = LaunchConfiguration("moveit_config_file")
-    warehouse_sqlite_path = LaunchConfiguration("warehouse_sqlite_path")
     prefix = LaunchConfiguration("prefix")
-    use_sim_time = LaunchConfiguration("use_sim_time")
-    launch_rviz = LaunchConfiguration("launch_rviz")
     launch_servo = LaunchConfiguration("launch_servo")
 
     joint_limit_params = PathJoinSubstitution(
@@ -141,112 +139,72 @@ def launch_setup(context, *args, **kwargs):
     # "robot_description_planning": load_yaml_abs(str(joint_limit_params.perform(context)))
     # }
 
-    # Planning Configuration
-    ompl_planning_pipeline_config = {
-        "move_group": {
-            "planning_plugin":
-                "ompl_interface/OMPLPlanner",
-            "request_adapters":
-                """default_planner_request_adapters/AddTimeOptimalParameterization default_planner_request_adapters/FixWorkspaceBounds default_planner_request_adapters/FixStartStateBounds default_planner_request_adapters/FixStartStateCollision default_planner_request_adapters/FixStartStatePathConstraints""",
-            "start_state_max_bounds_error":
-                0.1,
-        }
-    }
-    ompl_planning_yaml = load_yaml("ur_moveit_config", "config/ompl_planning.yaml")
-    ompl_planning_pipeline_config["move_group"].update(ompl_planning_yaml)
-
-    # Trajectory Execution Configuration
-    controllers_yaml = load_yaml("ur_moveit_config", "config/controllers.yaml")
-    # the scaled_joint_trajectory_controller does not work on fake hardware
-    change_controllers = context.perform_substitution(use_fake_hardware)
-    if change_controllers == "true":
-        controllers_yaml["scaled_joint_trajectory_controller"]["default"] = False
-        controllers_yaml["joint_trajectory_controller"]["default"] = True
-
-    moveit_controllers = {
-        "moveit_simple_controller_manager":
-            controllers_yaml,
-        "moveit_controller_manager":
-            "moveit_simple_controller_manager/MoveItSimpleControllerManager",
-    }
-
-    trajectory_execution = {
-        "moveit_manage_controllers": False,
-        "trajectory_execution.allowed_execution_duration_scaling": 1.2,
-        "trajectory_execution.allowed_goal_duration_margin": 0.5,
-        "trajectory_execution.allowed_start_tolerance": 0.01,
-    }
-
-    planning_scene_monitor_parameters = {
-        "publish_planning_scene": True,
-        "publish_geometry_updates": True,
-        "publish_state_updates": True,
-        "publish_transforms_updates": True,
-    }
-
-    warehouse_ros_config = {
-        "warehouse_plugin": "warehouse_ros_sqlite::DatabaseConnection",
-        "warehouse_host": warehouse_sqlite_path,
-    }
-
-    # Start the actual move_group node/action server
-    move_group_node = Node(
-        package="moveit_ros_move_group",
-        executable="move_group",
+    # Servo node for realtime control
+    servo_yaml = load_yaml("hello_moveit", "config/ur_servo.yaml")
+    servo_params = {"moveit_servo": servo_yaml}
+    servo_node = Node(
+        package="moveit_servo",
+        condition=IfCondition(launch_servo),
+        executable="servo_node_main",
+        parameters=[
+            servo_params,
+            robot_description,
+            robot_description_semantic,
+            robot_description_kinematics,
+        ],
         output="screen",
-        parameters=[
-            robot_description,
-            robot_description_semantic,
-            robot_description_kinematics,
-            # robot_description_planning,
-            ompl_planning_pipeline_config,
-            trajectory_execution,
-            moveit_controllers,
-            planning_scene_monitor_parameters,
-            {
-                "use_sim_time": use_sim_time
-            },
-            warehouse_ros_config,
-        ],
     )
 
-    # rviz with moveit configuration
-    rviz_config_file = PathJoinSubstitution(
-        [FindPackageShare("hello_moveit"), "rviz", "view_robot.rviz"])
-    rviz_node = Node(
-        package="rviz2",
-        condition=IfCondition(launch_rviz),
-        executable="rviz2",
-        name="rviz2_moveit",
-        output="log",
-        arguments=["-d", rviz_config_file],
-        parameters=[
-            robot_description,
-            robot_description_semantic,
-            ompl_planning_pipeline_config,
-            robot_description_kinematics,
-            # robot_description_planning,
-            warehouse_ros_config,
+    ## joystick
+    # Launch as much as possible in components
+    container = ComposableNodeContainer(
+        name="moveit_servo_demo_container",
+        namespace="/",
+        package="rclcpp_components",
+        executable="component_container_mt",
+        composable_node_descriptions=[
+            # Example of launching Servo as a node component
+            # Assuming ROS2 intraprocess communications works well, this is a more efficient way.
+            # ComposableNode(
+            #     package="moveit_servo",
+            #     plugin="moveit_servo::ServoServer",
+            #     name="servo_server",
+            #     parameters=[
+            #         servo_params,
+            #         moveit_config.robot_description,
+            #         moveit_config.robot_description_semantic,
+            #     ],
+            # ),
+            ComposableNode(
+                package="robot_state_publisher",
+                plugin="robot_state_publisher::RobotStatePublisher",
+                name="robot_state_publisher",
+                parameters=[robot_description],
+            ),
+            ComposableNode(
+                package="tf2_ros",
+                plugin="tf2_ros::StaticTransformBroadcasterNode",
+                name="static_tf2_broadcaster",
+                parameters=[{
+                    "child_frame_id": "/base_link",
+                    "frame_id": "/world"
+                }],
+            ),
+            ComposableNode(
+                package="hello_moveit",
+                plugin="moveit_servo::JoyToServoPub",
+                name="controller_to_servo_node",
+            ),
+            ComposableNode(
+                package="joy",
+                plugin="joy::Joy",
+                name="joy_node",
+            ),
         ],
+        output="screen",
     )
 
-    nodes_to_start = [move_group_node, rviz_node]
-
-    ## include ur bringup
-    launch_ur_bringup = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            PathJoinSubstitution(
-                [FindPackageShare('ur_robot_driver'), 'launch', 'ur_control.launch.py'])
-        ]),
-        launch_arguments={
-            'ur_type': 'ur5e',
-            'robot_ip': 'yyy.yyy.yyy.yyy',
-            'initial_joint_controller': 'joint_trajectory_controller',
-            'use_fake_hardware': context.perform_substitution(use_fake_hardware),
-            'launch_rviz': 'false'
-        }.items())
-    nodes_to_start.append(launch_ur_bringup)
-
+    nodes_to_start = [servo_node, container]
     return nodes_to_start
 
 
