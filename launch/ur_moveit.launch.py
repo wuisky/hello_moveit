@@ -47,6 +47,7 @@ def launch_setup(context, *args, **kwargs):
 
     # Initialize Arguments
     ur_type = LaunchConfiguration("ur_type")
+    robot_ip = LaunchConfiguration("robot_ip")
     use_fake_hardware = LaunchConfiguration("use_fake_hardware")
     safety_limits = LaunchConfiguration("safety_limits")
     safety_pos_margin = LaunchConfiguration("safety_pos_margin")
@@ -76,7 +77,8 @@ def launch_setup(context, *args, **kwargs):
         " ",
         PathJoinSubstitution([FindPackageShare(description_package), "urdf", description_file]),
         " ",
-        "robot_ip:=xxx.yyy.zzz.www",
+        "robot_ip:=",
+        robot_ip,
         " ",
         "joint_limit_params:=",
         joint_limit_params,
@@ -239,8 +241,8 @@ def launch_setup(context, *args, **kwargs):
                 [FindPackageShare('ur_robot_driver'), 'launch', 'ur_control.launch.py'])
         ]),
         launch_arguments={
-            'ur_type': 'ur5e',
-            'robot_ip': 'yyy.yyy.yyy.yyy',
+            'ur_type': context.perform_substitution(ur_type),
+            'robot_ip': context.perform_substitution(robot_ip),
             'initial_joint_controller': 'joint_trajectory_controller',
             'use_fake_hardware': context.perform_substitution(use_fake_hardware),
             'launch_rviz': 'false'
@@ -266,6 +268,12 @@ def generate_launch_description():
             default_value="false",
             description=
             "Indicate whether robot is running with fake hardware mirroring command to its states.",
+        ))
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "robot_ip",
+            default_value="yyy.yyy.yyy.yyy",
+            description="IP of ur robot",
         ))
     declared_arguments.append(
         DeclareLaunchArgument(
