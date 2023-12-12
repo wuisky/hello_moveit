@@ -58,6 +58,8 @@ def launch_setup(context, *args, **kwargs):
     moveit_config_file = LaunchConfiguration("moveit_config_file")
     prefix = LaunchConfiguration("prefix")
     launch_servo = LaunchConfiguration("launch_servo")
+    # for joystick
+    device_id = LaunchConfiguration("device_id")
 
     joint_limit_params = PathJoinSubstitution(
         [FindPackageShare(description_package), "config", ur_type, "joint_limits.yaml"])
@@ -198,6 +200,10 @@ def launch_setup(context, *args, **kwargs):
                 package="joy",
                 plugin="joy::Joy",
                 name="joy_node",
+                parameters=[{
+                    "device_id": int(context.perform_substitution(device_id)),
+                    #"device_id": 1,
+                }],
             ),
         ],
         output="screen",
@@ -216,6 +222,12 @@ def generate_launch_description():
             "ur_type",
             description="Type/series of used UR robot.",
             choices=["ur3", "ur3e", "ur5", "ur5e", "ur10", "ur10e", "ur16e", "ur20"],
+        ))
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "device_id",
+            description="id of joystick.",
+            default_value='0',
         ))
     declared_arguments.append(
         DeclareLaunchArgument(
