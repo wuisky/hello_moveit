@@ -81,7 +81,7 @@ install(TARGETS
   hello_ur
   DESTINATION lib/${PROJECT_NAME})
 
-install(DIRECTORY launch rviz config
+install(DIRECTORY launch rviz config cad
   DESTINATION share/${PROJECT_NAME}
 )
 

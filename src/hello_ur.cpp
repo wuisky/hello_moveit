@@ -176,10 +176,7 @@ int main(int argc, char * argv[])
       collision_object.operation = collision_object.ADD;
 
       Eigen::Vector3d scale(0.001, 0.001, 0.001);
-      // std::string resource =
-      // "package://moveit_resources_panda_description/meshes/collision/hand.stl";
-      std::string resource =
-        "package://moveit_resources_panda_description/meshes/collision/Shelf_housed.STL";
+      std::string resource = "package://hello_moveit/cad/Shelf_housed.STL";
       shapes::Mesh * m = shapes::createMeshFromResource(resource, scale);
       shape_msgs::msg::Mesh co_mesh;
       shapes::ShapeMsg co_mesh_msg;
@@ -291,10 +288,14 @@ int main(int argc, char * argv[])
   // Set a target Pose
   auto const target_pose = [] {
       geometry_msgs::msg::Pose msg;
-      msg.orientation.w = 0.0;
-      msg.orientation.x = -0.707;
-      msg.orientation.y = 0.0;
-      msg.orientation.z = 0.707;
+      // msg.orientation.w = 0.0;
+      // msg.orientation.x = -0.707;
+      // msg.orientation.y = 0.0;
+      // msg.orientation.z = 0.707;
+      msg.orientation.w = -0.5;
+      msg.orientation.x = 0.5;
+      msg.orientation.y = 0.5;
+      msg.orientation.z = -0.5;
       msg.position.x = -0.44;
       msg.position.y = 0.026;
       msg.position.z = 0.68;
@@ -336,10 +337,10 @@ int main(int argc, char * argv[])
   //////////////////////////
   auto const target_pose2 = [] {
       geometry_msgs::msg::Pose msg;
-      msg.orientation.w = 0.0;
-      msg.orientation.x = -0.707;
-      msg.orientation.y = 0.0;
-      msg.orientation.z = 0.707;
+      msg.orientation.w = -0.5;
+      msg.orientation.x = 0.5;
+      msg.orientation.y = 0.5;
+      msg.orientation.z = -0.5;
       msg.position.x = -0.44;
       msg.position.y = 0.052;
       msg.position.z = 0.464;
