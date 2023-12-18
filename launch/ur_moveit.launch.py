@@ -31,8 +31,10 @@
 
 import os
 
-from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction)
+from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
+                            OpaqueFunction, RegisterEventHandler, TimerAction)
 from launch.conditions import IfCondition
+from launch.event_handlers import OnExecutionComplete, OnProcessStart
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (Command, FindExecutable, LaunchConfiguration,
                                   PathJoinSubstitution)
@@ -61,7 +63,7 @@ def launch_setup(context, *args, **kwargs):
     prefix = LaunchConfiguration("prefix")
     use_sim_time = LaunchConfiguration("use_sim_time")
     launch_rviz = LaunchConfiguration("launch_rviz")
-    launch_servo = LaunchConfiguration("launch_servo")
+    handeye_calibration = LaunchConfiguration('handeye_calibration')
 
     joint_limit_params = PathJoinSubstitution(
         [FindPackageShare(description_package), "config", ur_type, "joint_limits.yaml"])
@@ -146,12 +148,10 @@ def launch_setup(context, *args, **kwargs):
     # Planning Configuration
     ompl_planning_pipeline_config = {
         "move_group": {
-            "planning_plugin":
-                "ompl_interface/OMPLPlanner",
+            "planning_plugin": "ompl_interface/OMPLPlanner",
             "request_adapters":
-                """default_planner_request_adapters/AddTimeOptimalParameterization default_planner_request_adapters/FixWorkspaceBounds default_planner_request_adapters/FixStartStateBounds default_planner_request_adapters/FixStartStateCollision default_planner_request_adapters/FixStartStatePathConstraints""",
-            "start_state_max_bounds_error":
-                0.1,
+            """default_planner_request_adapters/AddTimeOptimalParameterization default_planner_request_adapters/FixWorkspaceBounds default_planner_request_adapters/FixStartStateBounds default_planner_request_adapters/FixStartStateCollision default_planner_request_adapters/FixStartStatePathConstraints""",
+            "start_state_max_bounds_error": 0.1,
         }
     }
     ompl_planning_yaml = load_yaml("ur_moveit_config", "config/ompl_planning.yaml")
@@ -166,10 +166,9 @@ def launch_setup(context, *args, **kwargs):
         controllers_yaml["joint_trajectory_controller"]["default"] = True
 
     moveit_controllers = {
-        "moveit_simple_controller_manager":
-            controllers_yaml,
+        "moveit_simple_controller_manager": controllers_yaml,
         "moveit_controller_manager":
-            "moveit_simple_controller_manager/MoveItSimpleControllerManager",
+        "moveit_simple_controller_manager/MoveItSimpleControllerManager",
     }
 
     trajectory_execution = {
@@ -249,6 +248,44 @@ def launch_setup(context, *args, **kwargs):
         }.items())
     nodes_to_start.append(launch_ur_bringup)
 
+    ## include realsense2_camera
+    launch_realsense2_camera = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([FindPackageShare('realsense2_camera'), 'launch', 'rs_launch.py'])
+        ]),
+        launch_arguments={
+            'pointcloud.enable': 'true',
+            # 'rgb_camera.profile': '1280x720x30'
+        }.items(),
+        condition=IfCondition(handeye_calibration))
+    nodes_to_start.append(launch_realsense2_camera)
+
+    ## include aruco recognition
+    launch_aruco_recognition = IncludeLaunchDescription(PythonLaunchDescriptionSource([
+        PathJoinSubstitution(
+            [FindPackageShare('ros2_aruco'), 'launch', 'aruco_recognition.launch.py'])
+    ]),
+                                                        launch_arguments={}.items(),
+                                                        condition=IfCondition(handeye_calibration))
+    nodes_to_start.append(launch_aruco_recognition)
+
+    ## include easy_handeye2
+    launch_easy_handeye2 = IncludeLaunchDescription(PythonLaunchDescriptionSource([
+        PathJoinSubstitution([FindPackageShare('easy_handeye2'), 'launch', 'calibrate.launch.py'])
+    ]),
+                                                    launch_arguments={
+                                                        'calibration_type': 'eye_in_hand',
+                                                        'tracking_base_frame':
+                                                        'camera_color_optical_frame',
+                                                        'tracking_marker_frame': 'handeye_target',
+                                                        'robot_base_frame': 'base_link',
+                                                        'robot_effector_frame': 'tool0',
+                                                        'name': 'easy_handeye2_demo_eih',
+                                                    }.items(),
+                                                    condition=IfCondition(handeye_calibration))
+    easy_handeye2_delay = TimerAction(period=5.0, actions=[launch_easy_handeye2])
+    nodes_to_start.append(easy_handeye2_delay)
+
     return nodes_to_start
 
 
@@ -299,7 +336,7 @@ def generate_launch_description():
             "description_package",
             default_value="ur_description",
             description="Description package with robot URDF/XACRO files. Usually the argument \
-        is not set, it enables use of a custom description.",
+        is not set, it enables use of a custom description."                                                            ,
         ))
     declared_arguments.append(
         DeclareLaunchArgument(
@@ -312,7 +349,7 @@ def generate_launch_description():
             "moveit_config_package",
             default_value="ur_moveit_config",
             description="MoveIt config package with robot SRDF/XACRO files. Usually the argument \
-        is not set, it enables use of a custom moveit config.",
+        is not set, it enables use of a custom moveit config."                                                              ,
         ))
     declared_arguments.append(
         DeclareLaunchArgument(
@@ -339,11 +376,13 @@ def generate_launch_description():
             default_value='""',
             description="Prefix of the joint names, useful for \
         multi-robot setup. If changed than also joint names in the controllers' configuration \
-        have to be updated.",
+        have to be updated."                            ,
         ))
     declared_arguments.append(
         DeclareLaunchArgument("launch_rviz", default_value="true", description="Launch RViz?"))
     declared_arguments.append(
-        DeclareLaunchArgument("launch_servo", default_value="true", description="Launch Servo?"))
+        DeclareLaunchArgument("handeye_calibration",
+                              default_value="false",
+                              description="Launch easy_handeye2_calibrationi?"))
 
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
