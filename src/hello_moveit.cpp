@@ -138,29 +138,32 @@ int main(int argc, char * argv[])
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
   planning_scene_interface.applyCollisionObject(collision_object);
 
-  // Create a plan to that target pose
-  prompt("Press 'next' in the RvizVisualToolsGui window to plan");
-  draw_title("Planning");
-  moveit_visual_tools.trigger();
-  auto const [success, plan] = [&move_group_interface] {
-      moveit::planning_interface::MoveGroupInterface::Plan msg;
-      auto const ok = static_cast<bool>(move_group_interface.plan(msg));
-      return std::make_pair(ok, msg);
-    }();
+  // // Create a plan to that target pose
+  // prompt("Press 'next' in the RvizVisualToolsGui window to plan");
+  // draw_title("Planning");
+  // moveit_visual_tools.trigger();
+  // auto const [success, plan] = [&move_group_interface] {
+  //     moveit::planning_interface::MoveGroupInterface::Plan msg;
+  //     auto const ok = static_cast<bool>(move_group_interface.plan(msg));
+  //     return std::make_pair(ok, msg);
+  //   }();
 
-  // Execute the plan
-  if (success) {
-    draw_trajectory_tool_path(plan.trajectory_);
-    moveit_visual_tools.trigger();
-    prompt("Press 'next' in the RvizVisualToolsGui window to execute");
-    draw_title("Executing");
-    moveit_visual_tools.trigger();
-    move_group_interface.execute(plan);
-  } else {
-    draw_title("Planning Failed!");
-    moveit_visual_tools.trigger();
-    RCLCPP_ERROR(logger, "Planning failed!");
-  }
+  // // Execute the plan
+  // if (success) {
+  //   draw_trajectory_tool_path(plan.trajectory_);
+  //   moveit_visual_tools.trigger();
+  //   prompt("Press 'next' in the RvizVisualToolsGui window to execute");
+  //   draw_title("Executing");
+  //   moveit_visual_tools.trigger();
+  //   move_group_interface.execute(plan);
+  // } else {
+  //   draw_title("Planning Failed!");
+  //   moveit_visual_tools.trigger();
+  //   RCLCPP_ERROR(logger, "Planning failed!");
+  // }
+  const moveit::core::JointModelGroup * joint_model_group =
+    move_group_interface.getCurrentState()->getJointModelGroup(arm_group);
+  joint_model_group->printGroupInfo(std::cout);
 
   // Shutdown ROS
   rclcpp::shutdown();

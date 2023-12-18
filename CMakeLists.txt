@@ -11,6 +11,31 @@ find_package(moveit_ros_planning_interface REQUIRED)
 find_package(moveit_visual_tools REQUIRED)
 find_package(rclcpp REQUIRED)
 
+set(THIS_PACKAGE_INCLUDE_DEPENDS
+  control_msgs
+  control_toolbox
+  geometry_msgs
+  moveit_core
+  moveit_msgs
+  moveit_ros_planning
+  pluginlib
+  rclcpp
+  rclcpp_components
+  sensor_msgs
+  std_msgs
+  std_srvs
+  tf2_eigen
+  trajectory_msgs
+)
+
+foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
+  find_package(${Dependency} REQUIRED)
+endforeach()
+
+include_directories(
+  include
+)
+
 add_executable(hello_moveit src/hello_moveit.cpp)
 # target_include_directories(hello_moveit PUBLIC
 #   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -35,12 +60,28 @@ ament_target_dependencies(
   rclcpp
 )
 
+# Add executable for using a controller
+set(SERVO_CONTROLLER_INPUT servo_controller_input)
+add_library(${SERVO_CONTROLLER_INPUT} SHARED src/teleop_demo/joystick_servo_example.cpp)
+ament_target_dependencies(${SERVO_CONTROLLER_INPUT} ${THIS_PACKAGE_INCLUDE_DEPENDS})
+rclcpp_components_register_nodes(${SERVO_CONTROLLER_INPUT} "moveit_servo::JoyToServoPub")
+# Install Libraries
+install(
+  TARGETS
+    ${SERVO_CONTROLLER_INPUT}
+  EXPORT export_${PROJECT_NAME}
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION bin
+  INCLUDES DESTINATION include
+)
+
 install(TARGETS
   hello_moveit
   hello_ur
   DESTINATION lib/${PROJECT_NAME})
 
-install(DIRECTORY launch rviz config
+install(DIRECTORY launch rviz config cad
   DESTINATION share/${PROJECT_NAME}
 )
 
