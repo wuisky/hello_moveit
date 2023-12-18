@@ -44,8 +44,15 @@ void planAndExecuteJointValue(
   [&]()->void {
     for (int i = retry; i > 0; i--) {
       if (move_group_interface.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS) {
-        move_group_interface.execute(plan);
-        return;
+        char input;
+        std::cout << "Were you admitted? [y/n]" << std::endl;
+        std::cin >> input;
+        if (input == 'y') {
+          {
+            move_group_interface.execute(plan);
+            return;
+          }
+        }
       }
       RCLCPP_WARN_STREAM(logger, "try to replan");
     }
@@ -84,6 +91,19 @@ bool planAndExecutePose(
     //moveit_visual_tools.trigger();
     return false;
   }
+}
+
+void addCollisionObject(
+  const MoveGroupInterface & move_group_interface,
+  moveit_msgs::msg::CollisionObject & collision_object)
+{
+  collision_object.header.frame_id = move_group_interface.getPlanningFrame();
+  collision_object.operation = collision_object.ADD;
+
+  // Add the collision object to the scene
+  moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
+  auto ret = planning_scene_interface.applyCollisionObject(collision_object);
+  std::cout << "ret add obj:" << ret << std::endl;
 }
 
 int main(int argc, char * argv[])
@@ -147,49 +167,99 @@ int main(int argc, char * argv[])
       moveit_visual_tools.trigger();
     };
 
+  RCLCPP_INFO_STREAM(logger, "frame_id: " << move_group_interface.getPlanningFrame());
   // Create collision object for the robot to avoid
-  auto const collision_object = [frame_id = move_group_interface.getPlanningFrame()] {
-      moveit_msgs::msg::CollisionObject collision_object;
-      collision_object.header.frame_id = frame_id;
-      collision_object.id = "box1";
-      shape_msgs::msg::SolidPrimitive primitive;
+  ////////back wall/////////////////
+  [&move_group_interface] {
+    moveit_msgs::msg::CollisionObject collision_object;
+    collision_object.id = "wall1";
+    shape_msgs::msg::SolidPrimitive primitive;
 
-      // Define the size of the box in meters
-      primitive.type = primitive.BOX;
-      primitive.dimensions.resize(3);
-      primitive.dimensions[primitive.BOX_X] = 0.5;
-      primitive.dimensions[primitive.BOX_Y] = 0.1;
-      primitive.dimensions[primitive.BOX_Z] = 0.5;
+    // Define the size of the box in meters
+    primitive.type = primitive.BOX;
+    primitive.dimensions.resize(3);
+    primitive.dimensions[primitive.BOX_X] = 0.1;
+    primitive.dimensions[primitive.BOX_Y] = 1.0;
+    primitive.dimensions[primitive.BOX_Z] = 1.0;
+    collision_object.primitives.push_back(primitive);
 
-      // Define the pose of the box (relative to the frame_id)
-      geometry_msgs::msg::Pose box_pose;
-      box_pose.orientation.w = 0.5;
-      box_pose.orientation.x = 0.5;
-      box_pose.orientation.y = 0.5;
-      box_pose.orientation.z = 0.5;
-      box_pose.position.x = -1.7;
-      box_pose.position.y = -0.5;
-      box_pose.position.z = -0.5;
+    // Define the pose of the box (relative to the frame_id)
+    auto const obj_pose = [] {
+        geometry_msgs::msg::Pose obj_pose;
+        obj_pose.orientation.w = 1.0;
+        obj_pose.orientation.x = 0.0;
+        obj_pose.orientation.y = 0.0;
+        obj_pose.orientation.z = 0.0;
+        obj_pose.position.x = 0.3;
+        obj_pose.position.y = 0.0;
+        obj_pose.position.z = 0.5;
+        return obj_pose;
+      }();
+    collision_object.primitive_poses.push_back(obj_pose);
+    addCollisionObject(move_group_interface, collision_object);
+  }();
+  ////////shelf///////
+  // Create collision object for the robot to avoid
+  [&] {
+    moveit_msgs::msg::CollisionObject collision_object;
+    collision_object.id = "shelf";
+    // add mesh from stl
+    Eigen::Vector3d scale(0.001, 0.001, 0.001);
+    std::string resource = "package://hello_moveit/cad/Shelf_housed.STL";
+    // std::string resource = "package://hello_moveit/cad/2f-140.stl";
+    shapes::Mesh * m = shapes::createMeshFromResource(resource, scale);
+    shape_msgs::msg::Mesh co_mesh;
+    shapes::ShapeMsg co_mesh_msg;
+    shapes::constructMsgFromShape(m, co_mesh_msg);
+    co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
+    collision_object.meshes.push_back(co_mesh);
+    RCLCPP_INFO_STREAM(
+      logger,
+      "tra len:" << co_mesh.triangles.size() << ", verti len" << co_mesh.vertices.size() );
 
-      //collision_object.primitives.push_back(primitive);
-      //collision_object.primitive_poses.push_back(box_pose);
-      collision_object.operation = collision_object.ADD;
+    auto const obj_pose = [] {
+        geometry_msgs::msg::Pose obj_pose;
+        obj_pose.orientation.w = 0.5;
+        obj_pose.orientation.x = 0.5;
+        obj_pose.orientation.y = 0.5;
+        obj_pose.orientation.z = 0.5;
+        obj_pose.position.x = -1.7;
+        obj_pose.position.y = -0.5;
+        obj_pose.position.z = -0.5;
+        return obj_pose;
+      }();
+    collision_object.mesh_poses.push_back(obj_pose);
+    addCollisionObject(move_group_interface, collision_object);
+  }();
+  //////////////////////////////
+  [&] {
+    geometry_msgs::msg::Pose grab_pose;
+    grab_pose.orientation.w = 1.0;
+    grab_pose.position.z = 0.05;
+    shape_msgs::msg::SolidPrimitive cylinder_primitive;
+    shape_msgs::msg::SolidPrimitive primitive;
+    cylinder_primitive.type = primitive.CYLINDER;
+    cylinder_primitive.dimensions.resize(2);
+    cylinder_primitive.dimensions[primitive.CYLINDER_HEIGHT] = 0.10;
+    cylinder_primitive.dimensions[primitive.CYLINDER_RADIUS] = 0.04;
 
-      Eigen::Vector3d scale(0.001, 0.001, 0.001);
-      std::string resource = "package://hello_moveit/cad/Shelf_housed.STL";
-      shapes::Mesh * m = shapes::createMeshFromResource(resource, scale);
-      shape_msgs::msg::Mesh co_mesh;
-      shapes::ShapeMsg co_mesh_msg;
-      shapes::constructMsgFromShape(m, co_mesh_msg);
-      co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
-      collision_object.meshes.push_back(co_mesh);
-      collision_object.mesh_poses.push_back(box_pose);
-      return collision_object;
-    }();
+    moveit_msgs::msg::CollisionObject object_to_attach;
+    object_to_attach.id = "cylinder1";
+    object_to_attach.header.frame_id = move_group_interface.getEndEffectorLink();
+    object_to_attach.primitives.push_back(cylinder_primitive);
+    object_to_attach.primitive_poses.push_back(grab_pose);
+    object_to_attach.operation = object_to_attach.ADD;
 
-  // Add the collision object to the scene
-  moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
-  planning_scene_interface.applyCollisionObject(collision_object);
+    moveit_msgs::msg::AttachedCollisionObject acobj;
+    acobj.link_name = move_group_interface.getEndEffectorLink();
+    acobj.object = object_to_attach;
+    std::vector<std::string> touch_links;
+    touch_links.push_back("wrist_3_link");
+    acobj.touch_links = touch_links;
+
+    moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
+    planning_scene_interface.applyAttachedCollisionObject(acobj);
+  }();
 
   ////////////////////////////////////////////
   moveit::core::RobotStatePtr current_state = move_group_interface.getCurrentState(10);
@@ -333,7 +403,10 @@ int main(int argc, char * argv[])
   findClosestSolution(seed_state, joint_bonds, solution);
   planAndExecuteJointValue(node, solution, 30, move_group_interface);
 
-
+  current_state = move_group_interface.getCurrentState(10);
+  const Eigen::Isometry3d & end_effector_state = current_state->getGlobalLinkTransform(
+    move_group_interface.getEndEffectorLink());
+  RCLCPP_INFO_STREAM(logger, "tcp:\n " << end_effector_state.matrix());
   //////////////////////////
   auto const target_pose2 = [] {
       geometry_msgs::msg::Pose msg;
@@ -350,12 +423,16 @@ int main(int argc, char * argv[])
 
   current_state = move_group_interface.getCurrentState(10);
   current_state->copyJointGroupPositions(joint_model_group, seed_state);
-  RCLCPP_INFO_STREAM(logger, "start");
   ik_solver->getPositionIK(target_pose2, seed_state, solution, err_code);
   //ik_solver->searchPositionIK(target_pose, seed_state, 0.05, solution, err_code);
 
   findClosestSolution(seed_state, joint_bonds, solution);
   planAndExecuteJointValue(node, solution, 30, move_group_interface);
+  // fk example
+  current_state->setJointGroupActivePositions(joint_model_group, solution);
+  auto end_effector_state2 = current_state->getGlobalLinkTransform(
+    move_group_interface.getEndEffectorLink());
+  RCLCPP_INFO_STREAM(logger, "tcp:\n " << end_effector_state2.matrix());
 
 
   // for (std::size_t i = 0; i < solution.size(); ++i) {
