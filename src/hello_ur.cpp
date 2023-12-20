@@ -385,7 +385,7 @@ int main(int argc, char * argv[])
   //   }();
 
   // Eigen::Affine3d target_pose_aff, offset_aff;
-  // tf2::fromMsg(target_pose, target_pose_aff);
+  // tf2::fromMsg(target_pose, target_pose_aff  );
   // tf2::fromMsg(offset, offset_aff);
   // auto new_pose = tf2::toMsg(target_pose_aff * offset_aff.inverse());
   // ik_solver->getPositionIK(new_pose, seed_state, solution, err_code);
