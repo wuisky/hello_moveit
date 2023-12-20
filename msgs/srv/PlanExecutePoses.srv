@@ -1,0 +1,5 @@
+geometry_msgs/Pose[] poses
+geometry_msgs/Pose offset
+float32 velocity_scale
+---
+moveit_msgs/MoveItErrorCodes err_code
