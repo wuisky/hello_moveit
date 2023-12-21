@@ -59,7 +59,7 @@ public:
     const auto & logger = node_->get_logger();
     RCLCPP_INFO(logger, "service is called");
     const auto & target_pose = request->poses[0];
-    RCLCPP_INFO_STREAM(node_->get_logger(), "input " << target_pose.position.x);
+    RCLCPP_INFO_STREAM(logger, "input " << target_pose.position.x);
     auto current_state = move_group_->getCurrentState(3);
     std::vector<double> seed_state, solution;
     current_state->copyJointGroupPositions(joint_model_group_, seed_state);
@@ -72,12 +72,16 @@ public:
 
     move_group_->setMaxVelocityScalingFactor(request->velocity_scale);
     findClosestSolution(seed_state, solution);
+    for (int i = 0; i < solution.size(); ++i) {
+      RCLCPP_INFO_STREAM(logger, "q[" << i << "]=" << solution[i]);
+    }
     planAndExecuteJointValue(solution, 30);
     RCLCPP_INFO(logger, "service is retrun");
 
   }
 
 private:
+  // this function my not necessary depends on kinematic plugin
   void findClosestSolution(const std::vector<double> & current_q, std::vector<double> & solution)
   {
     for (std::size_t i = 0; i < current_q.size(); ++i) {
