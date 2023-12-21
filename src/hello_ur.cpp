@@ -200,37 +200,37 @@ int main(int argc, char * argv[])
   }();
   ////////shelf///////
   // Create collision object for the robot to avoid
-  [&] {
-    moveit_msgs::msg::CollisionObject collision_object;
-    collision_object.id = "shelf";
-    // add mesh from stl
-    Eigen::Vector3d scale(0.001, 0.001, 0.001);
-    std::string resource = "package://hello_moveit/cad/Shelf_housed.STL";
-    // std::string resource = "package://hello_moveit/cad/2f-140.stl";
-    shapes::Mesh * m = shapes::createMeshFromResource(resource, scale);
-    shape_msgs::msg::Mesh co_mesh;
-    shapes::ShapeMsg co_mesh_msg;
-    shapes::constructMsgFromShape(m, co_mesh_msg);
-    co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
-    collision_object.meshes.push_back(co_mesh);
-    RCLCPP_INFO_STREAM(
-      logger,
-      "tra len:" << co_mesh.triangles.size() << ", verti len" << co_mesh.vertices.size() );
+  // [&] {
+  //   moveit_msgs::msg::CollisionObject collision_object;
+  //   collision_object.id = "shelf";
+  //   // add mesh from stl
+  //   Eigen::Vector3d scale(0.001, 0.001, 0.001);
+  //   std::string resource = "package://hello_moveit/cad/Shelf_housed.STL";
+  //   // std::string resource = "package://hello_moveit/cad/2f-140.stl";
+  //   shapes::Mesh * m = shapes::createMeshFromResource(resource, scale);
+  //   shape_msgs::msg::Mesh co_mesh;
+  //   shapes::ShapeMsg co_mesh_msg;
+  //   shapes::constructMsgFromShape(m, co_mesh_msg);
+  //   co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
+  //   collision_object.meshes.push_back(co_mesh);
+  //   RCLCPP_INFO_STREAM(
+  //     logger,
+  //     "tra len:" << co_mesh.triangles.size() << ", verti len" << co_mesh.vertices.size() );
 
-    auto const obj_pose = [] {
-        geometry_msgs::msg::Pose obj_pose;
-        obj_pose.orientation.w = 0.5;
-        obj_pose.orientation.x = 0.5;
-        obj_pose.orientation.y = 0.5;
-        obj_pose.orientation.z = 0.5;
-        obj_pose.position.x = -1.7;
-        obj_pose.position.y = -0.5;
-        obj_pose.position.z = -0.5;
-        return obj_pose;
-      }();
-    collision_object.mesh_poses.push_back(obj_pose);
-    addCollisionObject(move_group_interface, collision_object);
-  }();
+  //   auto const obj_pose = [] {
+  //       geometry_msgs::msg::Pose obj_pose;
+  //       obj_pose.orientation.w = 0.5;
+  //       obj_pose.orientation.x = 0.5;
+  //       obj_pose.orientation.y = 0.5;
+  //       obj_pose.orientation.z = 0.5;
+  //       obj_pose.position.x = -1.7;
+  //       obj_pose.position.y = -0.5;
+  //       obj_pose.position.z = -0.5;
+  //       return obj_pose;
+  //     }();
+  //   collision_object.mesh_poses.push_back(obj_pose);
+  //   addCollisionObject(move_group_interface, collision_object);
+  // }();
   //////////////////////////////
   [&] {
     geometry_msgs::msg::Pose grab_pose;
