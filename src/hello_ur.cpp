@@ -8,7 +8,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <thread>
 
-#include <tf2_eigen/tf2_eigen.h>
+#include <tf2_eigen/tf2_eigen.hpp>
 
 
 using moveit::planning_interface::MoveGroupInterface;
@@ -206,6 +206,7 @@ int main(int argc, char * argv[])
     // add mesh from stl
     Eigen::Vector3d scale(0.001, 0.001, 0.001);
     std::string resource = "package://hello_moveit/cad/Shelf_housed.STL";
+    //std::string resource = "package://hello_moveit/cad/new_shelf.stl";
     // std::string resource = "package://hello_moveit/cad/2f-140.stl";
     shapes::Mesh * m = shapes::createMeshFromResource(resource, scale);
     shape_msgs::msg::Mesh co_mesh;

@@ -20,15 +20,15 @@ public:
   MoveitClient(
     const std::string arm_group,
     std::shared_ptr<rclcpp::Node> node,
-    std::unique_ptr<MoveGroupInterface> && move_group)
-  : arm_group_(arm_group), node_(node), move_group_(std::move(move_group)) {}
+    MoveGroupInterface & move_group)
+  : arm_group_(arm_group), node_(node), move_group_(move_group) {}
 
   void initServer()
   {
     const auto & logger = node_->get_logger();
-    moveit::core::RobotStatePtr current_state = move_group_->getCurrentState(3);
+    moveit::core::RobotStatePtr current_state = move_group_.getCurrentState(3);
     joint_model_group_ =
-      move_group_->getCurrentState()->getJointModelGroup(arm_group_);
+      move_group_.getCurrentState()->getJointModelGroup(arm_group_);
 
     //assign joint bonds
     auto joint_name = joint_model_group_->getActiveJointModelNames();
@@ -60,7 +60,7 @@ public:
     RCLCPP_INFO(logger, "service is called");
     const auto & target_pose = request->poses[0];
     RCLCPP_INFO_STREAM(logger, "input " << target_pose.position.x);
-    auto current_state = move_group_->getCurrentState(3);
+    auto current_state = move_group_.getCurrentState(3);
     std::vector<double> seed_state, solution;
     current_state->copyJointGroupPositions(joint_model_group_, seed_state);
     ik_solver_->getPositionIK(target_pose, seed_state, solution, respons->err_code);
@@ -70,9 +70,9 @@ public:
       return;
     }
 
-    move_group_->setMaxVelocityScalingFactor(request->velocity_scale);
+    move_group_.setMaxVelocityScalingFactor(request->velocity_scale);
     findClosestSolution(seed_state, solution);
-    for (int i = 0; i < solution.size(); ++i) {
+    for (size_t i = 0; i < solution.size(); ++i) {
       RCLCPP_INFO_STREAM(logger, "q[" << i << "]=" << solution[i]);
     }
     planAndExecuteJointValue(solution, 30);
@@ -104,17 +104,17 @@ private:
   void planAndExecuteJointValue(const std::vector<double> & q, const int retry)
   {
     auto const & logger = node_->get_logger();
-    move_group_->setJointValueTarget(q);
+    move_group_.setJointValueTarget(q);
     moveit::planning_interface::MoveGroupInterface::Plan plan;
     [&]()->void {
       for (int i = retry; i > 0; i--) {
-        if (move_group_->plan(plan) == moveit::core::MoveItErrorCode::SUCCESS) {
+        if (move_group_.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS) {
           char input;
           std::cout << "Were you admitted? [y/n]" << std::endl;
           std::cin >> input;
           if (input == 'y') {
             {
-              move_group_->execute(plan);
+              move_group_.execute(plan);
               return;
             }
           }
@@ -127,7 +127,7 @@ private:
 
   const std::string arm_group_;
   std::shared_ptr<rclcpp::Node> node_;
-  std::unique_ptr<MoveGroupInterface> move_group_;
+  MoveGroupInterface & move_group_;
   rclcpp::Service<hello_moveit::srv::PlanExecutePoses>::SharedPtr plan_execute_poses_srv_;
   kinematics::KinematicsBaseConstPtr ik_solver_;
   const moveit::core::JointModelGroup * joint_model_group_;
@@ -150,14 +150,13 @@ int main(int argc, char * argv[])
   // We spin up a SingleThreadedExecutor for the current state monitor to get
   // information about the robot's state.
   rclcpp::executors::SingleThreadedExecutor executor;
-  //rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(node);
   auto spinner = std::thread([&executor]() {executor.spin();});
   //auto spinner = std::thread([&node]() {rclcpp::spin(node);});
 
   // Create the MoveIt MoveGroup Interface
-  auto move_group = std::make_unique<MoveGroupInterface>(node, kARM_GROUP);
-  MoveitClient mc(kARM_GROUP, node, std::move(move_group));
+  auto move_group = MoveGroupInterface(node, kARM_GROUP);
+  MoveitClient mc(kARM_GROUP, node, move_group);
   mc.initServer();
 
   // wait until SIGTERM
