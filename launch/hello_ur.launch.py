@@ -100,6 +100,7 @@ def generate_launch_description():
             robot_description_kinematics,
         ],
         #prefix='gdb -ex run --args',
+        prefix=['xterm -e']
     )
 
     return launch.LaunchDescription([demo_node])

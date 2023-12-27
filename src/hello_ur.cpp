@@ -482,6 +482,8 @@ int main(int argc, char * argv[])
   auto target_pose3(target_pose2);
   target_pose3.position.y += 0.2;
   waypoints.push_back(target_pose3);
+  target_pose3.position.y -= 0.2;
+  waypoints.push_back(target_pose3);
   planAndExecuteCartesianPath(node, waypoints, 30, move_group_interface);
 
   // Shutdown ROS
