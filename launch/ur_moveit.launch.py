@@ -30,15 +30,16 @@
 # Author: Denis Stogl
 
 import os
+import re
 
 from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
-                            OpaqueFunction, RegisterEventHandler, TimerAction)
+                            OpaqueFunction, RegisterEventHandler, TimerAction, GroupAction)
 from launch.conditions import IfCondition
 from launch.event_handlers import OnExecutionComplete, OnProcessStart
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (Command, FindExecutable, LaunchConfiguration,
                                   PathJoinSubstitution)
-from launch_ros.actions import Node
+from launch_ros.actions import Node, PushRosNamespace
 from launch_ros.substitutions import FindPackageShare
 from ur_moveit_config.launch_common import load_yaml
 
@@ -64,6 +65,15 @@ def launch_setup(context, *args, **kwargs):
     use_sim_time = LaunchConfiguration("use_sim_time")
     launch_rviz = LaunchConfiguration("launch_rviz")
     handeye_calibration = LaunchConfiguration('handeye_calibration')
+
+    hand = LaunchConfiguration('hand')
+    # Enable use_tool_communication when the robotiq gripper is selected
+    if re.match('robotiq-', context.perform_substitution(hand)) is not None:
+        use_tool_communication = 'True'
+        use_robotiq_gripper = 'True'
+    else:
+        use_tool_communication = 'False'
+        use_robotiq_gripper = 'False'
 
     joint_limit_params = PathJoinSubstitution(
         [FindPackageShare(description_package), "config", ur_type, "joint_limits.yaml"])
@@ -244,7 +254,8 @@ def launch_setup(context, *args, **kwargs):
             'robot_ip': context.perform_substitution(robot_ip),
             'initial_joint_controller': 'joint_trajectory_controller',
             'use_fake_hardware': context.perform_substitution(use_fake_hardware),
-            'launch_rviz': 'false'
+            'launch_rviz': 'false',
+            'use_tool_communication': use_tool_communication
         }.items())
     nodes_to_start.append(launch_ur_bringup)
 
@@ -285,6 +296,33 @@ def launch_setup(context, *args, **kwargs):
                                                     condition=IfCondition(handeye_calibration))
     easy_handeye2_delay = TimerAction(period=5.0, actions=[launch_easy_handeye2])
     nodes_to_start.append(easy_handeye2_delay)
+
+    ## robotiq 2f-140
+    tool_communication_node = Node(
+        package="ur_robot_driver",
+        condition=IfCondition(use_tool_communication),
+        executable="tool_communication.py",
+        name="tool_communication",
+        output="log",
+        parameters=[
+            {'robot_ip': context.perform_substitution(robot_ip)},
+            {'device_name': '/tmp/ttyUR'}
+        ]
+    )
+    nodes_to_start.append(tool_communication_node)
+
+    launch_robotiq_gripper = GroupAction(actions=[
+        PushRosNamespace('gripper'),
+        IncludeLaunchDescription(PythonLaunchDescriptionSource(
+        [PathJoinSubstitution([FindPackageShare('robotiq_85_driver'), 'launch', 'gripper_driver.launch.py'])]),
+                                                      launch_arguments={
+                                                          'stroke': '0.140',
+                                                          'comport': '/tmp/ttyUR',
+                                                          'baud': '115200',
+                                                      }.items(),
+                                                      condition=IfCondition(use_robotiq_gripper),
+                                                    )])
+    nodes_to_start.append(launch_robotiq_gripper)
 
     return nodes_to_start
 
@@ -384,5 +422,12 @@ def generate_launch_description():
         DeclareLaunchArgument("handeye_calibration",
                               default_value="false",
                               description="Launch easy_handeye2_calibrationi?"))
+    # hand
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "hand",
+            default_value='""',
+            description="hand type",
+        ))
 
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
