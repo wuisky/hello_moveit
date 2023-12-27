@@ -75,9 +75,8 @@ public:
     for (size_t i = 0; i < solution.size(); ++i) {
       RCLCPP_INFO_STREAM(logger, "q[" << i << "]=" << solution[i]);
     }
-    planAndExecuteJointValue(solution, 30);
+    respons->err_code = planAndExecuteJointValue(solution, 30);
     RCLCPP_INFO(logger, "service is retrun");
-
   }
 
 private:
@@ -101,14 +100,19 @@ private:
   }
 
 
-  void planAndExecuteJointValue(const std::vector<double> & q, const int retry)
+  moveit::core::MoveItErrorCode planAndExecuteJointValue(
+    const std::vector<double> & q,
+    const int retry)
   {
     auto const & logger = node_->get_logger();
     move_group_.setJointValueTarget(q);
     moveit::planning_interface::MoveGroupInterface::Plan plan;
+    moveit::core::MoveItErrorCode err;
+
     [&]()->void {
       for (int i = retry; i > 0; i--) {
-        if (move_group_.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS) {
+        err = move_group_.plan(plan);
+        if (err.val == moveit::core::MoveItErrorCode::SUCCESS) {
           char input;
           std::cout << "Were you admitted? [y/n]" << std::endl;
           std::cin >> input;
@@ -123,6 +127,8 @@ private:
       }
       RCLCPP_ERROR_STREAM(logger, "planning fail");
     }();
+
+    return err;
   }
 
   const std::string arm_group_;
