@@ -1,8 +1,21 @@
 import sys
 
-from launch.substitutions import Command, FindExecutable, PathJoinSubstitution
-from launch_ros.actions import Node
+from launch.actions import (EmitEvent, GroupAction, IncludeLaunchDescription,
+                            LogInfo, OpaqueFunction, RegisterEventHandler)
+from launch.event_handlers import OnProcessStart, OnShutdown
+import launch.events
+from launch.launch_context import LaunchContext
+from launch.launch_description import LaunchDescription
+from launch.launch_description_entity import LaunchDescriptionEntity
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.launch_service import LaunchService
+from launch.substitutions import (Command, FindExecutable, LocalSubstitution,
+                                  PathJoinSubstitution)
+import launch_ros
+from launch_ros.actions import LifecycleNode, Node, PushRosNamespace
+from launch_ros.events.lifecycle import ChangeState
 from launch_ros.substitutions import FindPackageShare
+import lifecycle_msgs.msg
 
 import launch
 from launch import LaunchService
@@ -89,22 +102,23 @@ def generate_launch_description():
     robot_description = get_robot_description()
     robot_description_semantic = get_robot_description_semantic()
     robot_description_kinematics = get_robot_description_kinematics()
-    demo_node = Node(
+    node = Node(
         package="hello_moveit",
-        executable="hello_ur",
-        name="hello_ur",
+        executable="moveit_client",
+        name="moveit_client",
         output="screen",
         parameters=[
             robot_description,
             robot_description_semantic,
             robot_description_kinematics,
+            {"use_sim_time": True},
         ],
         #prefix='gdb -ex run --args',
         prefix=['xterm -e'],
     )
 
-    return launch.LaunchDescription([demo_node])
 
+    return launch.LaunchDescription([node])
 
 def main():
     ls = LaunchService(argv=sys.argv[1:])
