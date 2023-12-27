@@ -34,6 +34,38 @@ void findClosestSolution(
   }
 }
 
+void planAndExecuteCartesianPath(
+  const std::shared_ptr<rclcpp::Node> node,
+  const std::vector<geometry_msgs::msg::Pose> & waypoints,
+  const int retry, MoveGroupInterface & move_group_interface)
+{
+  auto const logger = node->get_logger();
+  moveit_msgs::msg::RobotTrajectory trajectory;
+  const double jump_threshold = 0.0;
+  const double eef_step = 0.01;
+
+  [&]()->void {
+    for (int i = retry; i > 0; i--) {
+      if (move_group_interface.computeCartesianPath(
+          waypoints, eef_step, jump_threshold,
+          trajectory) > 0.9)
+      {
+        char input;
+        std::cout << "Were you admitted? [y/n]" << std::endl;
+        std::cin >> input;
+        if (input == 'y') {
+          {
+            move_group_interface.execute(trajectory);
+            return;
+          }
+        }
+      }
+      RCLCPP_WARN_STREAM(logger, "try to replan");
+    }
+    RCLCPP_ERROR_STREAM(logger, "planning fail");
+  }();
+}
+
 void planAndExecuteJointValue(
   const std::shared_ptr<rclcpp::Node> node,
   const std::vector<double> & q, const int retry, MoveGroupInterface & move_group_interface)
@@ -205,8 +237,8 @@ int main(int argc, char * argv[])
     collision_object.id = "shelf";
     // add mesh from stl
     Eigen::Vector3d scale(0.001, 0.001, 0.001);
-    std::string resource = "package://hello_moveit/cad/Shelf_housed.STL";
-    //std::string resource = "package://hello_moveit/cad/new_shelf.stl";
+    // std::string resource = "package://hello_moveit/cad/Shelf_housed.STL";
+    std::string resource = "package://hello_moveit/cad/new_shelf.stl";
     // std::string resource = "package://hello_moveit/cad/2f-140.stl";
     shapes::Mesh * m = shapes::createMeshFromResource(resource, scale);
     shape_msgs::msg::Mesh co_mesh;
@@ -220,13 +252,14 @@ int main(int argc, char * argv[])
 
     auto const obj_pose = [] {
         geometry_msgs::msg::Pose obj_pose;
-        obj_pose.orientation.w = 0.5;
-        obj_pose.orientation.x = 0.5;
-        obj_pose.orientation.y = 0.5;
-        obj_pose.orientation.z = 0.5;
-        obj_pose.position.x = -1.7;
+        obj_pose.orientation.w = 1.0;
+        obj_pose.orientation.x = 0.0;
+        obj_pose.orientation.y = 0.0;
+        obj_pose.orientation.z = 0.0;
+        obj_pose.position.x = -0.9;
         obj_pose.position.y = -0.5;
-        obj_pose.position.z = -0.5;
+        obj_pose.position.z = -0.3;
+
         return obj_pose;
       }();
     collision_object.mesh_poses.push_back(obj_pose);
@@ -434,6 +467,13 @@ int main(int argc, char * argv[])
   auto end_effector_state2 = current_state->getGlobalLinkTransform(
     move_group_interface.getEndEffectorLink());
   RCLCPP_INFO_STREAM(logger, "tcp:\n " << end_effector_state2.matrix());
+
+  //cartesian interp example
+  std::vector<geometry_msgs::msg::Pose> waypoints;
+  auto target_pose3(target_pose2);
+  target_pose3.position.y += 0.2;
+  waypoints.push_back(target_pose3);  // down
+  planAndExecuteCartesianPath(node, waypoints, 30, move_group_interface);
 
 
   // for (std::size_t i = 0; i < solution.size(); ++i) {
