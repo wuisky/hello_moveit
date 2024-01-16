@@ -32,13 +32,14 @@
 import os
 import re
 
-from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
-                            OpaqueFunction, RegisterEventHandler, TimerAction, GroupAction)
+from launch.actions import (DeclareLaunchArgument, GroupAction,
+                            IncludeLaunchDescription, OpaqueFunction,
+                            RegisterEventHandler, TimerAction)
 from launch.conditions import IfCondition
 from launch.event_handlers import OnExecutionComplete, OnProcessStart
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (Command, FindExecutable, LaunchConfiguration,
-                                  PathJoinSubstitution)
+                                  PathJoinSubstitution, PythonExpression)
 from launch_ros.actions import Node, PushRosNamespace
 from launch_ros.substitutions import FindPackageShare
 from ur_moveit_config.launch_common import load_yaml
@@ -64,6 +65,7 @@ def launch_setup(context, *args, **kwargs):
     prefix = LaunchConfiguration("prefix")
     use_sim_time = LaunchConfiguration("use_sim_time")
     launch_rviz = LaunchConfiguration("launch_rviz")
+    use_realsense = LaunchConfiguration('use_realsense')
     handeye_calibration = LaunchConfiguration('handeye_calibration')
 
     hand = LaunchConfiguration('hand')
@@ -268,16 +270,29 @@ def launch_setup(context, *args, **kwargs):
             'pointcloud.enable': 'true',
             # 'rgb_camera.profile': '1280x720x30'
         }.items(),
-        condition=IfCondition(handeye_calibration))
+        condition=IfCondition(
+                    PythonExpression([
+                    handeye_calibration,
+                    ' or ',
+                    use_realsense
+                ])),
+    )
     nodes_to_start.append(launch_realsense2_camera)
 
     ## include aruco recognition
     launch_aruco_recognition = IncludeLaunchDescription(PythonLaunchDescriptionSource([
         PathJoinSubstitution(
             [FindPackageShare('ros2_aruco'), 'launch', 'aruco_recognition.launch.py'])
-    ]),
-                                                        launch_arguments={}.items(),
-                                                        condition=IfCondition(handeye_calibration))
+        ]),
+        launch_arguments={}.items(),
+        condition=IfCondition(
+                    PythonExpression([
+                    handeye_calibration,
+                    ' or ',
+                    use_realsense
+                    ])
+                ),
+    )
     nodes_to_start.append(launch_aruco_recognition)
 
     ## include easy_handeye2
@@ -420,8 +435,12 @@ def generate_launch_description():
         DeclareLaunchArgument("launch_rviz", default_value="true", description="Launch RViz?"))
     declared_arguments.append(
         DeclareLaunchArgument("handeye_calibration",
-                              default_value="false",
+                              default_value="False",
                               description="Launch easy_handeye2_calibrationi?"))
+    declared_arguments.append(
+        DeclareLaunchArgument("use_realsense",
+                              default_value="False",
+                              description="Launch ros2_aruco and realsense2?"))
     # hand
     declared_arguments.append(
         DeclareLaunchArgument(
