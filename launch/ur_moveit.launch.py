@@ -54,6 +54,7 @@ def launch_setup(context, *args, **kwargs):
     ur_type = LaunchConfiguration("ur_type")
     robot_ip = LaunchConfiguration("robot_ip")
     use_fake_hardware = LaunchConfiguration("use_fake_hardware")
+    controllers = LaunchConfiguration("controllers")
     safety_limits = LaunchConfiguration("safety_limits")
     safety_pos_margin = LaunchConfiguration("safety_pos_margin")
     safety_k_position = LaunchConfiguration("safety_k_position")
@@ -180,7 +181,7 @@ def launch_setup(context, *args, **kwargs):
     controllers_yaml = load_yaml("ur_moveit_config", "config/controllers.yaml")
     # the scaled_joint_trajectory_controller does not work on fake hardware
     change_controllers = context.perform_substitution(use_fake_hardware)
-    if change_controllers == "true":
+    if change_controllers == "true" or context.perform_substitution(controllers) == "joint_trajectory_controller":
         controllers_yaml["scaled_joint_trajectory_controller"]["default"] = False
         controllers_yaml["joint_trajectory_controller"]["default"] = True
 
@@ -326,6 +327,25 @@ def launch_setup(context, *args, **kwargs):
     easy_handeye2_delay = TimerAction(period=5.0, actions=[launch_easy_handeye2])
     nodes_to_start.append(easy_handeye2_delay)
 
+    # static transform publisher
+    calibration_yaml = load_yaml("hello_moveit", "config/easy_handeye2_demo_eih.calib")
+    camera_tf_node = Node(package='tf2_ros', executable='static_transform_publisher', name='camera_tf_publisher',
+                          condition=IfCondition(PythonExpression(['not ', handeye_calibration, ' and ', use_realsense])),
+                          arguments=[
+                              "--x", str(calibration_yaml["transform"]["translation"]["x"]),
+                              "--y", str(calibration_yaml["transform"]["translation"]["y"]),
+                              "--z", str(calibration_yaml["transform"]["translation"]["z"]),
+                              "--qx", str(calibration_yaml["transform"]["rotation"]["x"]),
+                              "--qy", str(calibration_yaml["transform"]["rotation"]["y"]),
+                              "--qz", str(calibration_yaml["transform"]["rotation"]["z"]),
+                              "--qw", str(calibration_yaml["transform"]["rotation"]["w"]),
+                              "--frame-id", calibration_yaml["parameters"]["robot_effector_frame"],
+                              "--child-frame-id", calibration_yaml["parameters"]["tracking_base_frame"],
+                            ],
+                         )
+    camera_tf_node_delay = TimerAction(period=5.0, actions=[camera_tf_node])
+    nodes_to_start.append(camera_tf_node_delay)
+
     ## robotiq 2f-140
     tool_communication_node = Node(
         package="ur_robot_driver",
@@ -372,6 +392,13 @@ def generate_launch_description():
             default_value="false",
             description=
             "Indicate whether robot is running with fake hardware mirroring command to its states.",
+        ))
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "controllers",
+            default_value="joint_trajectory_controller",
+            description=
+            "loaded robot controller",
         ))
     declared_arguments.append(
         DeclareLaunchArgument(
