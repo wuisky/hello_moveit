@@ -29,6 +29,7 @@
 #
 # Author: Denis Stogl
 
+import ast
 import os
 import re
 
@@ -76,6 +77,12 @@ def launch_setup(context, *args, **kwargs):
     else:
         use_tool_communication = 'False'
         use_robotiq_gripper = 'False'
+
+    marker_size = LaunchConfiguration("marker_size")
+    image_topic = LaunchConfiguration("image_topic")
+    camera_info_topic = LaunchConfiguration("camera_info_topic")
+    tracking_base_frame = LaunchConfiguration("tracking_base_frame")
+    marker_id_list = LaunchConfiguration("marker_id_list")
 
     joint_limit_params = PathJoinSubstitution(
         [FindPackageShare(description_package), "config", ur_type, "joint_limits.yaml"])
@@ -284,7 +291,14 @@ def launch_setup(context, *args, **kwargs):
         PathJoinSubstitution(
             [FindPackageShare('ros2_aruco'), 'launch', 'aruco_recognition.launch.py'])
         ]),
-        launch_arguments={}.items(),
+        launch_arguments={
+            'marker_size': context.perform_substitution(marker_size),
+            'aruco_dictionary_id': 'DICT_5X5_250',
+            'image_topic': context.perform_substitution(image_topic),
+            'camera_info_topic': context.perform_substitution(camera_info_topic),
+            'tracking_base_frame': context.perform_substitution(tracking_base_frame),
+            'marker_id_list': marker_id_list,
+        }.items(),
         condition=IfCondition(
                     PythonExpression([
                     handeye_calibration,
@@ -296,14 +310,14 @@ def launch_setup(context, *args, **kwargs):
     nodes_to_start.append(launch_aruco_recognition)
 
     ## include easy_handeye2
+    calibration_marker = ast.literal_eval(context.perform_substitution(marker_id_list))[0]
     launch_easy_handeye2 = IncludeLaunchDescription(PythonLaunchDescriptionSource([
         PathJoinSubstitution([FindPackageShare('easy_handeye2'), 'launch', 'calibrate.launch.py'])
     ]),
                                                     launch_arguments={
                                                         'calibration_type': 'eye_in_hand',
-                                                        'tracking_base_frame':
-                                                        'camera_color_optical_frame',
-                                                        'tracking_marker_frame': 'handeye_target',
+                                                        'tracking_base_frame': str(context.perform_substitution(tracking_base_frame)),
+                                                        'tracking_marker_frame': f'aruco_marker_{calibration_marker}',
                                                         'robot_base_frame': 'base_link',
                                                         'robot_effector_frame': 'tool0',
                                                         'name': 'easy_handeye2_demo_eih',
@@ -447,6 +461,37 @@ def generate_launch_description():
             "hand",
             default_value='""',
             description="hand type",
+        ))
+    # aruco marker
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "marker_size",
+            default_value='0.050',
+            description="aruco marker size.",
+        ))
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "image_topic",
+            description="image topic name.",
+            default_value='/camera/color/image_rect_raw',
+        ))
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "camera_info_topic",
+            description="camera info topic name.",
+            default_value='/camera/color/camera_info',
+        ))
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "tracking_base_frame",
+            description=".",
+            default_value='camera_color_optical_frame',
+        ))
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "marker_id_list",
+            description="list of marker IDs to be detected.",
+            default_value='[0, 1, 2, 3]',
         ))
 
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
