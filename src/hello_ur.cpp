@@ -240,7 +240,7 @@ int main(int argc, char * argv[])
     collision_object.id = "shelf";
     // add mesh from stl
     Eigen::Vector3d scale(0.001, 0.001, 0.001);
-    std::string resource = "package://hello_moveit/cad/Shelf_housed.STL";
+    std::string resource = "package://hello_moveit/cad/shelf_rev5/type1_slid_shelf_change_1.STL";
     // std::string resource = "package://hello_moveit/cad/new_shelf.stl";
     // std::string resource = "package://hello_moveit/cad/2f-140.stl";
     shapes::Mesh * m = shapes::createMeshFromResource(resource, scale);
@@ -255,38 +255,52 @@ int main(int argc, char * argv[])
 
     auto const obj_pose = [] {
         geometry_msgs::msg::Pose obj_pose;
-        obj_pose.orientation.w = 0.5;
-        obj_pose.orientation.x = 0.5;
-        obj_pose.orientation.y = 0.5;
-        obj_pose.orientation.z = 0.5;
-        obj_pose.position.x = -1.7;
-        obj_pose.position.y = -0.5;
-        obj_pose.position.z = -0.5;
+        obj_pose.orientation.w = 1.0;
+        obj_pose.orientation.x = 0.0;
+        obj_pose.orientation.y = 0.0;
+        obj_pose.orientation.z = 0.0;
+        obj_pose.position.x = -0.70932;
+        obj_pose.position.y = 0.43848;
+        obj_pose.position.z = -0.83605;
 
         return obj_pose;
       }();
     collision_object.mesh_poses.push_back(obj_pose);
     addCollisionObject(move_group_interface, collision_object);
   }();
-  //////////////////////////////
+  ///////////attach hand///////////////////
   [&] {
     geometry_msgs::msg::Pose grab_pose;
     grab_pose.orientation.w = 1.0;
-    grab_pose.position.z = 0.05;
-    shape_msgs::msg::SolidPrimitive cylinder_primitive;
-    shape_msgs::msg::SolidPrimitive primitive;
-    cylinder_primitive.type = primitive.CYLINDER;
-    cylinder_primitive.dimensions.resize(2);
-    cylinder_primitive.dimensions[primitive.CYLINDER_HEIGHT] = 0.10;
-    cylinder_primitive.dimensions[primitive.CYLINDER_RADIUS] = 0.04;
+    grab_pose.position.z = 0.0;
+    // grab_pose.position.z = 0.05; // for cylinder
+
+    // shape_msgs::msg::SolidPrimitive cylinder_primitive;
+    // shape_msgs::msg::SolidPrimitive primitive;
+    // cylinder_primitive.type = primitive.CYLINDER;
+    // cylinder_primitive.dimensions.resize(2);
+    // cylinder_primitive.dimensions[primitive.CYLINDER_HEIGHT] = 0.10;
+    // cylinder_primitive.dimensions[primitive.CYLINDER_RADIUS] = 0.04;
 
     moveit_msgs::msg::CollisionObject object_to_attach;
-    object_to_attach.id = "cylinder1";
+    object_to_attach.id = "robotiq_hand";
     object_to_attach.header.frame_id = move_group_interface.getEndEffectorLink();
-    object_to_attach.primitives.push_back(cylinder_primitive);
-    object_to_attach.primitive_poses.push_back(grab_pose);
+    // object_to_attach.primitives.push_back(cylinder_primitive); //for cylinder
+    // object_to_attach.primitive_poses.push_back(grab_pose); //for cylinder
+
+    Eigen::Vector3d scale(0.001, 0.001, 0.001);
+    std::string resource =
+      "package://hello_moveit/cad/robotiq_gripper/robotiq_2F_adaptive_gripper_rough.STL";
+    shapes::Mesh * m = shapes::createMeshFromResource(resource, scale);
+    shape_msgs::msg::Mesh co_mesh;
+    shapes::ShapeMsg co_mesh_msg;
+    shapes::constructMsgFromShape(m, co_mesh_msg);
+    co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
+    object_to_attach.meshes.push_back(co_mesh);
+    object_to_attach.mesh_poses.push_back(grab_pose);
     object_to_attach.operation = object_to_attach.ADD;
 
+    // allow hand mesh collision with wrist_3_link
     moveit_msgs::msg::AttachedCollisionObject acobj;
     acobj.link_name = move_group_interface.getEndEffectorLink();
     acobj.object = object_to_attach;
@@ -403,9 +417,9 @@ int main(int argc, char * argv[])
       msg.orientation.x = 0.5;
       msg.orientation.y = 0.5;
       msg.orientation.z = -0.5;
-      msg.position.x = -0.44;
-      msg.position.y = 0.026;
-      msg.position.z = 0.68;
+      msg.position.x = -0.696;
+      msg.position.y = 0.052;
+      msg.position.z = 0.464;
       return msg;
     }();
 
@@ -451,9 +465,9 @@ int main(int argc, char * argv[])
       msg.orientation.x = 0.5;
       msg.orientation.y = 0.5;
       msg.orientation.z = -0.5;
-      msg.position.x = -0.44;
-      msg.position.y = 0.052;
-      msg.position.z = 0.464;
+      msg.position.x = -0.696;
+      msg.position.y = 0.0519;
+      msg.position.z = 0.154;
 
       return msg;
     }();
