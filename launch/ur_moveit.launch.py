@@ -29,6 +29,7 @@
 #
 # Author: Denis Stogl
 
+import ast
 import os
 import re
 from typing import Union
@@ -54,6 +55,7 @@ def launch_setup(context, *args, **kwargs):
     ur_type = LaunchConfiguration("ur_type")
     robot_ip = LaunchConfiguration("robot_ip")
     use_fake_hardware = LaunchConfiguration("use_fake_hardware")
+    controller = LaunchConfiguration("controller")
     safety_limits = LaunchConfiguration("safety_limits")
     safety_pos_margin = LaunchConfiguration("safety_pos_margin")
     safety_k_position = LaunchConfiguration("safety_k_position")
@@ -77,6 +79,12 @@ def launch_setup(context, *args, **kwargs):
     else:
         use_tool_communication = 'False'
         use_robotiq_gripper = 'False'
+
+    marker_size = LaunchConfiguration("marker_size")
+    image_topic = LaunchConfiguration("image_topic")
+    camera_info_topic = LaunchConfiguration("camera_info_topic")
+    tracking_base_frame = LaunchConfiguration("tracking_base_frame")
+    marker_id_list = LaunchConfiguration("marker_id_list")
 
     joint_limit_params = PathJoinSubstitution(
         [FindPackageShare(description_package), "config", ur_type, "joint_limits.yaml"])
@@ -174,7 +182,7 @@ def launch_setup(context, *args, **kwargs):
     controllers_yaml = load_yaml("ur_moveit_config", "config/controllers.yaml")
     # the scaled_joint_trajectory_controller does not work on fake hardware
     change_controllers = context.perform_substitution(use_fake_hardware)
-    if change_controllers == "true":
+    if change_controllers == "true" or context.perform_substitution(controller) == "joint_trajectory_controller":
         controllers_yaml["scaled_joint_trajectory_controller"]["default"] = False
         controllers_yaml["joint_trajectory_controller"]["default"] = True
 
@@ -285,7 +293,14 @@ def launch_setup(context, *args, **kwargs):
         PathJoinSubstitution(
             [FindPackageShare('ros2_aruco'), 'launch', 'aruco_recognition.launch.py'])
         ]),
-        launch_arguments={}.items(),
+        launch_arguments={
+            'marker_size': context.perform_substitution(marker_size),
+            'aruco_dictionary_id': 'DICT_5X5_250',
+            'image_topic': context.perform_substitution(image_topic),
+            'camera_info_topic': context.perform_substitution(camera_info_topic),
+            'tracking_base_frame': context.perform_substitution(tracking_base_frame),
+            'marker_id_list': marker_id_list,
+        }.items(),
         condition=IfCondition(
                     PythonExpression([
                     handeye_calibration,
@@ -297,14 +312,15 @@ def launch_setup(context, *args, **kwargs):
     nodes_to_start.append(launch_aruco_recognition)
 
     ## include easy_handeye2
+    # use the marker at index 0 in the marker_id_list to perform handeye calibration
+    calibration_marker = ast.literal_eval(context.perform_substitution(marker_id_list))[0]
     launch_easy_handeye2 = IncludeLaunchDescription(PythonLaunchDescriptionSource([
         PathJoinSubstitution([FindPackageShare('easy_handeye2'), 'launch', 'calibrate.launch.py'])
     ]),
                                                     launch_arguments={
                                                         'calibration_type': 'eye_in_hand',
-                                                        'tracking_base_frame':
-                                                        'camera_color_optical_frame',
-                                                        'tracking_marker_frame': 'handeye_target',
+                                                        'tracking_base_frame': context.perform_substitution(tracking_base_frame),
+                                                        'tracking_marker_frame': f'aruco_marker_{calibration_marker}',
                                                         'robot_base_frame': 'base_link',
                                                         'robot_effector_frame': 'tool0',
                                                         'name': 'easy_handeye2_demo_eih',
@@ -312,6 +328,25 @@ def launch_setup(context, *args, **kwargs):
                                                     condition=IfCondition(handeye_calibration))
     easy_handeye2_delay = TimerAction(period=5.0, actions=[launch_easy_handeye2])
     nodes_to_start.append(easy_handeye2_delay)
+
+    # static transform publisher
+    calibration_yaml = load_yaml("hello_moveit", "config/easy_handeye2_demo_eih.calib")
+    camera_tf_node = Node(package='tf2_ros', executable='static_transform_publisher', name='camera_tf_publisher',
+                          condition=IfCondition(PythonExpression(['not ', handeye_calibration, ' and ', use_realsense])),
+                          arguments=[
+                              "--x", str(calibration_yaml["transform"]["translation"]["x"]),
+                              "--y", str(calibration_yaml["transform"]["translation"]["y"]),
+                              "--z", str(calibration_yaml["transform"]["translation"]["z"]),
+                              "--qx", str(calibration_yaml["transform"]["rotation"]["x"]),
+                              "--qy", str(calibration_yaml["transform"]["rotation"]["y"]),
+                              "--qz", str(calibration_yaml["transform"]["rotation"]["z"]),
+                              "--qw", str(calibration_yaml["transform"]["rotation"]["w"]),
+                              "--frame-id", calibration_yaml["parameters"]["robot_effector_frame"],
+                              "--child-frame-id", calibration_yaml["parameters"]["tracking_base_frame"],
+                            ],
+                         )
+    camera_tf_node_delay = TimerAction(period=5.0, actions=[camera_tf_node])
+    nodes_to_start.append(camera_tf_node_delay)
 
     ## robotiq 2f-140
     tool_communication_node = Node(
@@ -359,6 +394,13 @@ def generate_launch_description():
             default_value="false",
             description=
             "Indicate whether robot is running with fake hardware mirroring command to its states.",
+        ))
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "controller",
+            default_value="joint_trajectory_controller",
+            description=
+            "loaded robot controller",
         ))
     declared_arguments.append(
         DeclareLaunchArgument(
@@ -448,6 +490,37 @@ def generate_launch_description():
             "hand",
             default_value='""',
             description="hand type",
+        ))
+    # aruco marker
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "marker_size",
+            default_value='0.050',
+            description="aruco marker size.",
+        ))
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "image_topic",
+            description="image topic name.",
+            default_value='/camera/color/image_rect_raw',
+        ))
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "camera_info_topic",
+            description="camera info topic name.",
+            default_value='/camera/color/camera_info',
+        ))
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "tracking_base_frame",
+            description=".",
+            default_value='camera_color_optical_frame',
+        ))
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "marker_id_list",
+            description="list of marker IDs to be detected.",
+            default_value='[0, 1, 2, 3]',
         ))
 
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
