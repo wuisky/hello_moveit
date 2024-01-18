@@ -54,7 +54,7 @@ def launch_setup(context, *args, **kwargs):
     ur_type = LaunchConfiguration("ur_type")
     robot_ip = LaunchConfiguration("robot_ip")
     use_fake_hardware = LaunchConfiguration("use_fake_hardware")
-    controllers = LaunchConfiguration("controllers")
+    controller = LaunchConfiguration("controller")
     safety_limits = LaunchConfiguration("safety_limits")
     safety_pos_margin = LaunchConfiguration("safety_pos_margin")
     safety_k_position = LaunchConfiguration("safety_k_position")
@@ -181,7 +181,7 @@ def launch_setup(context, *args, **kwargs):
     controllers_yaml = load_yaml("ur_moveit_config", "config/controllers.yaml")
     # the scaled_joint_trajectory_controller does not work on fake hardware
     change_controllers = context.perform_substitution(use_fake_hardware)
-    if change_controllers == "true" or context.perform_substitution(controllers) == "joint_trajectory_controller":
+    if change_controllers == "true" or context.perform_substitution(controller) == "joint_trajectory_controller":
         controllers_yaml["scaled_joint_trajectory_controller"]["default"] = False
         controllers_yaml["joint_trajectory_controller"]["default"] = True
 
@@ -311,13 +311,14 @@ def launch_setup(context, *args, **kwargs):
     nodes_to_start.append(launch_aruco_recognition)
 
     ## include easy_handeye2
+    # use the marker at index 0 in the marker_id_list to perform handeye calibration
     calibration_marker = ast.literal_eval(context.perform_substitution(marker_id_list))[0]
     launch_easy_handeye2 = IncludeLaunchDescription(PythonLaunchDescriptionSource([
         PathJoinSubstitution([FindPackageShare('easy_handeye2'), 'launch', 'calibrate.launch.py'])
     ]),
                                                     launch_arguments={
                                                         'calibration_type': 'eye_in_hand',
-                                                        'tracking_base_frame': str(context.perform_substitution(tracking_base_frame)),
+                                                        'tracking_base_frame': context.perform_substitution(tracking_base_frame),
                                                         'tracking_marker_frame': f'aruco_marker_{calibration_marker}',
                                                         'robot_base_frame': 'base_link',
                                                         'robot_effector_frame': 'tool0',
@@ -395,7 +396,7 @@ def generate_launch_description():
         ))
     declared_arguments.append(
         DeclareLaunchArgument(
-            "controllers",
+            "controller",
             default_value="joint_trajectory_controller",
             description=
             "loaded robot controller",
