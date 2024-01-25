@@ -130,14 +130,24 @@ bool planAndExecutePose(
 
 void addCollisionObject(
   const MoveGroupInterface & move_group_interface,
-  moveit_msgs::msg::CollisionObject & collision_object)
+  moveit_msgs::msg::CollisionObject & collision_object,
+  planning_scene::PlanningScene & planning_scene)
 {
   collision_object.header.frame_id = move_group_interface.getPlanningFrame();
   collision_object.operation = collision_object.ADD;
-
+  // std::cout << "id " << collision_object.header.frame_id << std::endl; //world
   // Add the collision object to the scene
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
   auto ret = planning_scene_interface.applyCollisionObject(collision_object);
+
+  moveit_msgs::msg::PlanningSceneWorld psw;
+  psw.collision_objects.push_back(collision_object); //moveit_msgs::msg::CollisionObject collision_object;
+  auto ps = moveit_msgs::msg::PlanningScene();
+  ps.world = psw;
+  ps.is_diff = true;
+  planning_scene.setPlanningSceneMsg(ps);
+  // planning_scene.setPlanningSceneDiffMsg()
+
   std::cout << "ret add obj:" << ret << std::endl;
 }
 
@@ -204,8 +214,11 @@ int main(int argc, char * argv[])
 
   RCLCPP_INFO_STREAM(logger, "frame_id: " << move_group_interface.getPlanningFrame());
   // Create collision object for the robot to avoid
+  robot_model_loader::RobotModelLoader robot_model_loader(node);
+  const moveit::core::RobotModelPtr & kinematic_model = robot_model_loader.getModel();
+  planning_scene::PlanningScene planning_scene(kinematic_model);
   ////////back wall/////////////////
-  [&move_group_interface] {
+  [&move_group_interface, &planning_scene] {
     moveit_msgs::msg::CollisionObject collision_object;
     collision_object.id = "wall1";
     shape_msgs::msg::SolidPrimitive primitive;
@@ -221,17 +234,18 @@ int main(int argc, char * argv[])
     // Define the pose of the box (relative to the frame_id)
     auto const obj_pose = [] {
         geometry_msgs::msg::Pose obj_pose;
-        obj_pose.orientation.w = 1.0;
+        obj_pose.orientation.w = -0.707;
         obj_pose.orientation.x = 0.0;
         obj_pose.orientation.y = 0.0;
-        obj_pose.orientation.z = 0.0;
+        obj_pose.orientation.z = 0.707;
         obj_pose.position.x = 0.3;
-        obj_pose.position.y = 0.0;
-        obj_pose.position.z = 0.5;
+        //obj_pose.position.y = 0.45;
+        obj_pose.position.y = 0.05;
+        obj_pose.position.z = 1.1;
         return obj_pose;
       }();
     collision_object.primitive_poses.push_back(obj_pose);
-    addCollisionObject(move_group_interface, collision_object);
+    addCollisionObject(move_group_interface, collision_object, planning_scene);
   }();
   ////////shelf///////
   // Create collision object for the robot to avoid
@@ -266,7 +280,7 @@ int main(int argc, char * argv[])
         return obj_pose;
       }();
     collision_object.mesh_poses.push_back(obj_pose);
-    addCollisionObject(move_group_interface, collision_object);
+    addCollisionObject(move_group_interface, collision_object, planning_scene);
   }();
   ///////////attach hand///////////////////
   [&] {
@@ -299,6 +313,10 @@ int main(int argc, char * argv[])
     object_to_attach.meshes.push_back(co_mesh);
     object_to_attach.mesh_poses.push_back(grab_pose);
     object_to_attach.operation = object_to_attach.ADD;
+    // addCollisionObject(move_group_interface, object_to_attach);
+    moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
+    //planning_scene_interface.applyCollisionObject(object_to_attach);
+
 
     // allow hand mesh collision with wrist_3_link
     moveit_msgs::msg::AttachedCollisionObject acobj;
@@ -308,8 +326,8 @@ int main(int argc, char * argv[])
     touch_links.push_back("wrist_3_link");
     acobj.touch_links = touch_links;
 
-    moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
     planning_scene_interface.applyAttachedCollisionObject(acobj);
+
   }();
 
   ////////////////////////////////////////////
@@ -441,64 +459,88 @@ int main(int argc, char * argv[])
   // auto new_pose = tf2::toMsg(target_pose_aff * offset_aff.inverse());
   // ik_solver->getPositionIK(new_pose, seed_state, solution, err_code);
 
-  ik_solver->getPositionIK(target_pose, seed_state, solution, err_code);
-  //ik_solver->searchPositionIK(target_pose, seed_state, 0.05, solution, err_code);
-  RCLCPP_INFO_STREAM(logger, "errcode: " << err_code.val);
+  // ik_solver->getPositionIK(target_pose, seed_state, solution, err_code);
+  // //ik_solver->searchPositionIK(target_pose, seed_state, 0.05, solution, err_code);
+  // RCLCPP_INFO_STREAM(logger, "errcode: " << err_code.val);
 
-  if (err_code.val != moveit_msgs::msg::MoveItErrorCodes::SUCCESS) {
-    RCLCPP_FATAL_STREAM(logger, "IKERROR, errcode:" << err_code.val);
-    rclcpp::shutdown();
-    spinner.join();
-    return 1;
-  }
-  findClosestSolution(seed_state, joint_bonds, solution);
-  planAndExecuteJointValue(node, solution, 30, move_group_interface);
+  // if (err_code.val != moveit_msgs::msg::MoveItErrorCodes::SUCCESS) {
+  //   RCLCPP_FATAL_STREAM(logger, "IKERROR, errcode:" << err_code.val);
+  //   rclcpp::shutdown();
+  //   spinner.join();
+  //   return 1;
+  // }
+  // findClosestSolution(seed_state, joint_bonds, solution);
+  // planAndExecuteJointValue(node, solution, 30, move_group_interface);
 
+  // current_state = move_group_interface.getCurrentState(10);
+  // const Eigen::Isometry3d & end_effector_state = current_state->getGlobalLinkTransform(
+  //   move_group_interface.getEndEffectorLink());
+  // RCLCPP_INFO_STREAM(logger, "tcp:\n " << end_effector_state.matrix());
+
+  collision_detection::CollisionRequest collision_request;
+  collision_request.group_name = "ur_manipulator";
+  collision_request.contacts = true;
+  // collision_request.cost = true;
+  // collision_request.max_cost_sources = collision_request.max_contacts;
+  // collision_request.max_contacts *= collision_request.max_contacts;
+
+  collision_request.max_contacts = 1;
+  collision_detection::CollisionResult collision_result;
   current_state = move_group_interface.getCurrentState(10);
-  const Eigen::Isometry3d & end_effector_state = current_state->getGlobalLinkTransform(
-    move_group_interface.getEndEffectorLink());
-  RCLCPP_INFO_STREAM(logger, "tcp:\n " << end_effector_state.matrix());
-  //////////////////////////
-  auto const target_pose2 = [] {
-      geometry_msgs::msg::Pose msg;
-      msg.orientation.w = -0.5;
-      msg.orientation.x = 0.5;
-      msg.orientation.y = 0.5;
-      msg.orientation.z = -0.5;
-      msg.position.x = -0.696;
-      msg.position.y = 0.0519;
-      msg.position.z = 0.154;
+  moveit::core::RobotState copied_state = planning_scene.getCurrentState();
+  collision_detection::AllowedCollisionMatrix acm = planning_scene.getAllowedCollisionMatrix();
+  planning_scene.checkCollision(collision_request, collision_result, copied_state);
 
-      return msg;
-    }();
+  RCLCPP_INFO_STREAM(
+    logger, "Test 7: Current state is " << (collision_result.collision ? "in" : "not in")
+                                        << " collision");
+  auto collision = planning_scene.isStateColliding();
+  RCLCPP_INFO_STREAM(
+    logger, "Test 8: Current state is " << (collision ? "in" : "not in")
+                                        << " collision");
+  // move_group_interface.detachObject("robotiq_hand");
 
-  current_state = move_group_interface.getCurrentState(10);
-  current_state->copyJointGroupPositions(joint_model_group, seed_state);
-  ik_solver->getPositionIK(target_pose2, seed_state, solution, err_code);
-  //ik_solver->searchPositionIK(target_pose, seed_state, 0.05, solution, err_code);
+  // //////////////////////////
+  // auto const target_pose2 = [] {
+  //     geometry_msgs::msg::Pose msg;
+  //     msg.orientation.w = -0.5;
+  //     msg.orientation.x = 0.5;
+  //     msg.orientation.y = 0.5;
+  //     msg.orientation.z = -0.5;
+  //     msg.position.x = -0.696;
+  //     msg.position.y = 0.0519;
+  //     msg.position.z = 0.154;
 
-  findClosestSolution(seed_state, joint_bonds, solution);
-  planAndExecuteJointValue(node, solution, 30, move_group_interface);
-  // fk example
-  current_state->setJointGroupActivePositions(joint_model_group, solution);
-  auto end_effector_state2 = current_state->getGlobalLinkTransform(
-    move_group_interface.getEndEffectorLink());
-  RCLCPP_INFO_STREAM(logger, "tcp:\n " << end_effector_state2.matrix());
+  //     return msg;
+  //   }();
 
-  // // remove shelf.
-  // std::vector<std::string> object_ids;
-  // object_ids.push_back("shelf");
-  // moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
-  // planning_scene_interface.removeCollisionObjects(object_ids);
+  // current_state = move_group_interface.getCurrentState(10);
+  // current_state->copyJointGroupPositions(joint_model_group, seed_state);
+  // ik_solver->getPositionIK(target_pose2, seed_state, solution, err_code);
+  // //ik_solver->searchPositionIK(target_pose, seed_state, 0.05, solution, err_code);
 
-  //cartesian interp example
-  std::vector<geometry_msgs::msg::Pose> waypoints;
-  auto target_pose3(target_pose2);
-  target_pose3.position.y += 0.2;
-  waypoints.push_back(target_pose3);
-  target_pose3.position.y -= 0.2;
-  waypoints.push_back(target_pose3);
-  planAndExecuteCartesianPath(node, waypoints, 30, move_group_interface);
+  // findClosestSolution(seed_state, joint_bonds, solution);
+  // planAndExecuteJointValue(node, solution, 30, move_group_interface);
+  // // fk example
+  // current_state->setJointGroupActivePositions(joint_model_group, solution);
+  // auto end_effector_state2 = current_state->getGlobalLinkTransform(
+  //   move_group_interface.getEndEffectorLink());
+  // RCLCPP_INFO_STREAM(logger, "tcp:\n " << end_effector_state2.matrix());
+
+  // // // remove shelf.
+  // // std::vector<std::string> object_ids;
+  // // object_ids.push_back("shelf");
+  // // moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
+  // // planning_scene_interface.removeCollisionObjects(object_ids);
+
+  // //cartesian interp example
+  // std::vector<geometry_msgs::msg::Pose> waypoints;
+  // auto target_pose3(target_pose2);
+  // target_pose3.position.y += 0.2;
+  // waypoints.push_back(target_pose3);
+  // target_pose3.position.y -= 0.2;
+  // waypoints.push_back(target_pose3);
+  // planAndExecuteCartesianPath(node, waypoints, 30, move_group_interface);
 
   // Shutdown ROS
   rclcpp::shutdown();
