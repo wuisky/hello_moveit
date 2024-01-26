@@ -145,8 +145,8 @@ void addCollisionObject(
   auto ps = moveit_msgs::msg::PlanningScene();
   ps.world = psw;
   ps.is_diff = true;
-  planning_scene.setPlanningSceneMsg(ps);
-  // planning_scene.setPlanningSceneDiffMsg()
+  //planning_scene.setPlanningSceneMsg(ps);
+  planning_scene.setPlanningSceneDiffMsg(ps);
 
   std::cout << "ret add obj:" << ret << std::endl;
 }
@@ -484,16 +484,30 @@ int main(int argc, char * argv[])
   // collision_request.max_cost_sources = collision_request.max_contacts;
   // collision_request.max_contacts *= collision_request.max_contacts;
 
-  collision_request.max_contacts = 1;
+  collision_request.max_contacts = 100;
   collision_detection::CollisionResult collision_result;
   current_state = move_group_interface.getCurrentState(10);
-  moveit::core::RobotState copied_state = planning_scene.getCurrentState();
+  for (std::string name : joint_name) {
+    std::cout << name << ", q: " << *current_state->getJointPositions(name) << std::endl;
+  }
   collision_detection::AllowedCollisionMatrix acm = planning_scene.getAllowedCollisionMatrix();
-  planning_scene.checkCollision(collision_request, collision_result, copied_state);
+  planning_scene.checkCollision(collision_request, collision_result, *current_state);
 
   RCLCPP_INFO_STREAM(
     logger, "Test 7: Current state is " << (collision_result.collision ? "in" : "not in")
                                         << " collision");
+
+  if (collision_result.collision) {
+    for (const auto & entry : collision_result.contacts) {
+      // for (const auto & c: entry.second) {
+      //   std::cout << "id1 " << c.body_name_1 << "id2 " << c.body_name_2 << std::endl;
+      // }
+      const auto & key = entry.first;
+      std::cout << "Key: (" << key.first << ", " << key.second << ")" << std::endl;
+    }
+  }
+
+
   auto collision = planning_scene.isStateColliding();
   RCLCPP_INFO_STREAM(
     logger, "Test 8: Current state is " << (collision ? "in" : "not in")
