@@ -1,0 +1,6 @@
+string resource_path
+string object_id
+float32 scale
+geometry_msgs/Pose pose
+---
+bool is_success

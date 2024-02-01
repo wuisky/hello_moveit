@@ -38,8 +38,14 @@ include_directories(
   include
 )
 
-rosidl_generate_interfaces(${PROJECT_NAME}
+set(srv_files
   "msgs/srv/PlanExecutePoses.srv"
+  "msgs/srv/AddCollisionObject.srv"
+  "msgs/srv/AddCollisionObjectFromMesh.srv"
+)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${srv_files}
   DEPENDENCIES
   builtin_interfaces
   moveit_msgs
