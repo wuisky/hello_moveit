@@ -40,8 +40,8 @@ include_directories(
 
 set(srv_files
   "msgs/srv/PlanExecutePoses.srv"
-  "msgs/srv/AddCollisionObject.srv"
-  "msgs/srv/AddCollisionObjectFromMesh.srv"
+  "msgs/srv/ApplyCollisionObject.srv"
+  "msgs/srv/ApplyCollisionObjectFromMesh.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

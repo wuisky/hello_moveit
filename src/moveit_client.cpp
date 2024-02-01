@@ -10,7 +10,7 @@
 
 #include <tf2_eigen/tf2_eigen.hpp>
 #include "hello_moveit/srv/plan_execute_poses.hpp"
-#include "hello_moveit/srv/add_collision_object.hpp"
+#include "hello_moveit/srv/apply_collision_object.hpp"
 
 
 using moveit::planning_interface::MoveGroupInterface;
@@ -51,10 +51,10 @@ public:
         &MoveitClient::planExecutePosesCB, this, std::placeholders::_1,
         std::placeholders::_2));
 
-    add_collision_object_srv_ = node_->create_service<hello_moveit::srv::AddCollisionObject>(
-      "add_collision_object",
+    apply_collision_object_srv_ = node_->create_service<hello_moveit::srv::ApplyCollisionObject>(
+      "apply_collision_object",
       std::bind(
-        &MoveitClient::addCollisionObjectCB, this, std::placeholders::_1,
+        &MoveitClient::applyCollisionObjectCB, this, std::placeholders::_1,
         std::placeholders::_2));
 
     RCLCPP_INFO(logger_, "service is created");
@@ -86,11 +86,12 @@ public:
     RCLCPP_INFO(logger_, "service is retrun");
   }
 
-  void addCollisionObjectCB(
-    const std::shared_ptr<hello_moveit::srv::AddCollisionObject::Request> request,
-    std::shared_ptr<hello_moveit::srv::AddCollisionObject::Response> respons)
+  void applyCollisionObjectCB(
+    const std::shared_ptr<hello_moveit::srv::ApplyCollisionObject::Request> request,
+    std::shared_ptr<hello_moveit::srv::ApplyCollisionObject::Response> respons)
   {
-
+    request->object.header.frame_id = move_group_.getPlanningFrame();
+    respons->is_success = planning_scene_interface_.applyCollisionObject(request->object);
   }
 
 private:
@@ -149,12 +150,13 @@ private:
   MoveGroupInterface & move_group_;
   rclcpp::Service<hello_moveit::srv::PlanExecutePoses>::SharedPtr
     plan_execute_poses_srv_;
-  rclcpp::Service<hello_moveit::srv::AddCollisionObject>::SharedPtr
-    add_collision_object_srv_;
+  rclcpp::Service<hello_moveit::srv::ApplyCollisionObject>::SharedPtr
+    apply_collision_object_srv_;
   kinematics::KinematicsBaseConstPtr ik_solver_;
   const moveit::core::JointModelGroup * joint_model_group_;
   std::vector<moveit::core::VariableBounds> joint_bonds_;
   rclcpp::Logger logger_;
+  moveit::planning_interface::PlanningSceneInterface planning_scene_interface_;
 };
 
 
