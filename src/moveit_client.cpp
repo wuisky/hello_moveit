@@ -1,16 +1,17 @@
-#include <moveit/move_group_interface/move_group_interface.h>
-#include <moveit/planning_scene_interface/planning_scene_interface.h>
-#include <moveit_visual_tools/moveit_visual_tools.h>
-
-#include <geometric_shapes/shape_operations.h>
-
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <thread>
 
+#include <moveit/move_group_interface/move_group_interface.h>
+#include <moveit/planning_scene_interface/planning_scene_interface.h>
+#include <moveit_visual_tools/moveit_visual_tools.h>
+#include <moveit_msgs/msg/collision_object.h>
+#include <geometric_shapes/shape_operations.h>
 #include <tf2_eigen/tf2_eigen.hpp>
-#include "hello_moveit/srv/plan_execute_poses.hpp"
+
 #include "hello_moveit/srv/apply_collision_object.hpp"
+#include "hello_moveit/srv/apply_collision_object_from_mesh.hpp"
+#include "hello_moveit/srv/plan_execute_poses.hpp"
 
 
 using moveit::planning_interface::MoveGroupInterface;
@@ -57,6 +58,13 @@ public:
         &MoveitClient::applyCollisionObjectCB, this, std::placeholders::_1,
         std::placeholders::_2));
 
+    apply_collision_object_from_mesh_srv_ =
+      node_->create_service<hello_moveit::srv::ApplyCollisionObjectFromMesh>(
+      "apply_collision_object_from_mesh",
+      std::bind(
+        &MoveitClient::applyCollisionObjectFromMeshCB, this, std::placeholders::_1,
+        std::placeholders::_2));
+
     RCLCPP_INFO(logger_, "service is created");
   }
 
@@ -94,6 +102,31 @@ public:
       request->object.header.frame_id = move_group_.getPlanningFrame();
     }
     respons->is_success = planning_scene_interface_.applyCollisionObject(request->object);
+  }
+
+  void applyCollisionObjectFromMeshCB(
+    const std::shared_ptr<hello_moveit::srv::ApplyCollisionObjectFromMesh::Request> request,
+    std::shared_ptr<hello_moveit::srv::ApplyCollisionObjectFromMesh::Response> respons)
+  {
+    moveit_msgs::msg::CollisionObject collision_object;
+    collision_object.id = request->object_id;
+    Eigen::Vector3d scale(request->scale, request->scale, request->scale);
+    shapes::Mesh * m = shapes::createMeshFromResource(request->resource_path, scale);
+    shape_msgs::msg::Mesh co_mesh;
+    shapes::ShapeMsg co_mesh_msg;
+    shapes::constructMsgFromShape(m, co_mesh_msg);
+    co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
+    collision_object.meshes.push_back(co_mesh);
+    collision_object.mesh_poses.push_back(request->pose);
+    collision_object.operation = request->operation;
+    if (request->frame_id.empty()) {
+      collision_object.header.frame_id = move_group_.getPlanningFrame();
+    } else {
+      collision_object.header.frame_id = request->frame_id;
+    }
+
+
+    respons->is_success = planning_scene_interface_.applyCollisionObject(collision_object);
   }
 
 private:
@@ -154,6 +187,8 @@ private:
     plan_execute_poses_srv_;
   rclcpp::Service<hello_moveit::srv::ApplyCollisionObject>::SharedPtr
     apply_collision_object_srv_;
+  rclcpp::Service<hello_moveit::srv::ApplyCollisionObjectFromMesh>::SharedPtr
+    apply_collision_object_from_mesh_srv_;
   kinematics::KinematicsBaseConstPtr ik_solver_;
   const moveit::core::JointModelGroup * joint_model_group_;
   std::vector<moveit::core::VariableBounds> joint_bonds_;
