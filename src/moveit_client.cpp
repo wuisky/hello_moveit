@@ -12,6 +12,7 @@
 #include "hello_moveit/srv/apply_collision_object.hpp"
 #include "hello_moveit/srv/apply_collision_object_from_mesh.hpp"
 #include "hello_moveit/srv/plan_execute_poses.hpp"
+#include "hello_moveit/srv/attach_hand.hpp"
 
 
 using moveit::planning_interface::MoveGroupInterface;
@@ -63,6 +64,12 @@ public:
       "apply_collision_object_from_mesh",
       std::bind(
         &MoveitClient::applyCollisionObjectFromMeshCB, this, std::placeholders::_1,
+        std::placeholders::_2));
+
+    attach_hand_srv_ = node_->create_service<hello_moveit::srv::AttachHand>(
+      "attach_hand",
+      std::bind(
+        &MoveitClient::attachHandCB, this, std::placeholders::_1,
         std::placeholders::_2));
 
     RCLCPP_INFO(logger_, "service is created");
@@ -125,8 +132,31 @@ public:
       collision_object.header.frame_id = request->frame_id;
     }
 
-
     respons->is_success = planning_scene_interface_.applyCollisionObject(collision_object);
+  }
+
+  void attachHandCB(
+    const std::shared_ptr<hello_moveit::srv::AttachHand::Request> request,
+    std::shared_ptr<hello_moveit::srv::AttachHand::Response> respons)
+  {
+    moveit_msgs::msg::CollisionObject object;
+    object.id = request->object_id;
+    object.header.frame_id = move_group_.getEndEffectorLink();
+    Eigen::Vector3d scale(request->scale, request->scale, request->scale);
+    shapes::Mesh * m = shapes::createMeshFromResource(request->resource_path, scale);
+    shape_msgs::msg::Mesh co_mesh;
+    shapes::ShapeMsg co_mesh_msg;
+    shapes::constructMsgFromShape(m, co_mesh_msg);
+    co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
+    object.meshes.push_back(co_mesh);
+    object.mesh_poses.push_back(request->pose);
+    object.operation = object.ADD;
+
+    moveit_msgs::msg::AttachedCollisionObject acobj;
+    acobj.link_name = move_group_.getEndEffectorLink();
+    acobj.object = object;
+    acobj.touch_links = request->touch_links;
+    respons->is_success = planning_scene_interface_.applyAttachedCollisionObject(acobj);
   }
 
 private:
@@ -185,10 +215,16 @@ private:
   MoveGroupInterface & move_group_;
   rclcpp::Service<hello_moveit::srv::PlanExecutePoses>::SharedPtr
     plan_execute_poses_srv_;
+
   rclcpp::Service<hello_moveit::srv::ApplyCollisionObject>::SharedPtr
     apply_collision_object_srv_;
+
   rclcpp::Service<hello_moveit::srv::ApplyCollisionObjectFromMesh>::SharedPtr
     apply_collision_object_from_mesh_srv_;
+
+  rclcpp::Service<hello_moveit::srv::AttachHand>::SharedPtr
+    attach_hand_srv_;
+
   kinematics::KinematicsBaseConstPtr ik_solver_;
   const moveit::core::JointModelGroup * joint_model_group_;
   std::vector<moveit::core::VariableBounds> joint_bonds_;
