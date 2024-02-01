@@ -90,7 +90,9 @@ public:
     const std::shared_ptr<hello_moveit::srv::ApplyCollisionObject::Request> request,
     std::shared_ptr<hello_moveit::srv::ApplyCollisionObject::Response> respons)
   {
-    request->object.header.frame_id = move_group_.getPlanningFrame();
+    if (request->object.header.frame_id.empty()) {
+      request->object.header.frame_id = move_group_.getPlanningFrame();
+    }
     respons->is_success = planning_scene_interface_.applyCollisionObject(request->object);
   }
 
