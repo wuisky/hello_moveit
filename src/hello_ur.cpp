@@ -304,6 +304,8 @@ int main(int argc, char * argv[])
     moveit_msgs::msg::AttachedCollisionObject acobj;
     acobj.link_name = move_group_interface.getEndEffectorLink();
     acobj.object = object_to_attach;
+
+    RCLCPP_INFO_STREAM(logger, "acobj linkname:" << acobj.link_name);//tool0
     std::vector<std::string> touch_links;
     touch_links.push_back("wrist_3_link");
     acobj.touch_links = touch_links;
