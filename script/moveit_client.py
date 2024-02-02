@@ -9,9 +9,7 @@ import rclpy
 from shape_msgs.msg import SolidPrimitive
 
 
-def main()->None:
-    rclpy.init()
-    node = rclpy.create_node('oreore')
+def apply_collision_object(node):
     apply_collision_object_cli = node.create_client(ApplyCollisionObject, 'apply_collision_object')
     obj = CollisionObject()
     obj.id = 'wall'
@@ -43,7 +41,8 @@ def main()->None:
         node.get_logger().error('apply object fail!!')
     else:
         node.get_logger().info('success!')
-    ###########################################
+
+def apply_collision_object_from_mesh(node):
     apply_collision_object_from_mesh_cli = node.create_client(ApplyCollisionObjectFromMesh, 'apply_collision_object_from_mesh')
     req = ApplyCollisionObjectFromMesh.Request()
     req.resource_path = 'package://hello_moveit/cad/shelf_rev5/type1_slid_shelf_change_1.STL'
@@ -68,7 +67,8 @@ def main()->None:
         node.get_logger().error('apply object from mesh fail!!')
     else:
         node.get_logger().info('success!')
-    ######################################################
+
+def attach_hand(node):
     attach_hand_cli = node.create_client(AttachHand, 'attach_hand')
     req = AttachHand.Request()
     req.resource_path = "package://hello_moveit/cad/robotiq_gripper/robotiq_2F_adaptive_gripper_rough.STL"
@@ -89,7 +89,7 @@ def main()->None:
     else:
         node.get_logger().info('success!')
 
-    ###########################################
+def plan_execute_poses(node):
     plan_execute_poses_cli = node.create_client(PlanExecutePoses, 'plan_execute_poses')
     req = PlanExecutePoses.Request()
     req.velocity_scale = 1.0
@@ -112,6 +112,16 @@ def main()->None:
         node.get_logger().error(f'fail!!MoveItErrorCode: {future.result().err_code.val}')
     else:
         node.get_logger().info('success!')
+
+
+def main()->None:
+    rclpy.init()
+    node = rclpy.create_node('oreore')
+
+    apply_collision_object(node)
+    apply_collision_object_from_mesh(node)
+    attach_hand(node)
+    plan_execute_poses(node)
 
     node.destroy_node()
     rclpy.try_shutdown()
