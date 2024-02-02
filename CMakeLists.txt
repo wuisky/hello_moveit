@@ -38,6 +38,10 @@ include_directories(
   include
 )
 
+set(msg_files
+  "msgs/msg/CollisionPair.msg"
+)
+
 set(srv_files
   "msgs/srv/PlanExecutePoses.srv"
   "msgs/srv/ApplyCollisionObject.srv"
@@ -46,6 +50,7 @@ set(srv_files
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  ${msg_files}
   ${srv_files}
   DEPENDENCIES
   builtin_interfaces
