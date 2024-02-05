@@ -166,16 +166,31 @@ private:
     moveit_msgs::msg::CollisionObject object;
     object.id = request->object_id;
     Eigen::Vector3d scale(request->scale, request->scale, request->scale);
-    shapes::Mesh * m = shapes::createMeshFromResource(request->resource_path, scale);
+    std::unique_ptr<shapes::Mesh> m(shapes::createMeshFromResource(request->resource_path, scale));
     shape_msgs::msg::Mesh co_mesh;
     shapes::ShapeMsg co_mesh_msg;
-    shapes::constructMsgFromShape(m, co_mesh_msg);
+    shapes::constructMsgFromShape(m.get(), co_mesh_msg);
     co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
     object.meshes.push_back(co_mesh);
     object.mesh_poses.push_back(request->pose);
     return object;
   }
 
+  // static shapes::Mesh*
+
+  static Eigen::Isometry3d convertPoseToIsometry3d_(const geometry_msgs::msg::Pose & pose)
+  {
+    Eigen::Isometry3d object_pose;
+    object_pose.translation() << pose.position.x, pose.position.y, pose.position.z;
+    object_pose.linear() = Eigen::Quaterniond(
+      pose.orientation.w,
+      pose.orientation.x,
+      pose.orientation.y,
+      pose.orientation.z
+    ).toRotationMatrix();
+
+    return object_pose;
+  }
 
   // this function my not necessary depends on kinematic plugin
   void findClosestSolution_(const std::vector<double> & current_q, std::vector<double> & solution)
