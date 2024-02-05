@@ -454,6 +454,12 @@ int main(int argc, char * argv[])
     return 1;
   }
   findClosestSolution(seed_state, joint_bonds, solution);
+
+  for (std::size_t i = 0; i < solution.size(); ++i) {
+    RCLCPP_INFO(logger, "Joint %s: %f", joint_name[i].c_str(), solution[i]);
+  }
+
+
   planAndExecuteJointValue(node, solution, 30, move_group_interface);
 
   current_state = move_group_interface.getCurrentState(10);

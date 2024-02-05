@@ -98,9 +98,9 @@ def plan_execute_poses(node):
     msg.orientation.x = 0.5
     msg.orientation.y = 0.5
     msg.orientation.z = -0.5
-    msg.position.x = -0.44
-    msg.position.y = 0.026
-    msg.position.z = 0.68
+    msg.position.x = -0.696
+    msg.position.y = 0.052
+    msg.position.z = 0.464
     req.poses = [msg]
 
     while not plan_execute_poses_cli.wait_for_service(timeout_sec=1.0):

@@ -11,8 +11,9 @@
 
 #include "hello_moveit/srv/apply_collision_object.hpp"
 #include "hello_moveit/srv/apply_collision_object_from_mesh.hpp"
-#include "hello_moveit/srv/plan_execute_poses.hpp"
 #include "hello_moveit/srv/attach_hand.hpp"
+#include "hello_moveit/srv/check_collision.hpp"
+#include "hello_moveit/srv/plan_execute_poses.hpp"
 
 
 using moveit::planning_interface::MoveGroupInterface;
@@ -29,7 +30,6 @@ public:
 
   void initServer()
   {
-    moveit::core::RobotStatePtr current_state = move_group_.getCurrentState(3);
     joint_model_group_ =
       move_group_.getCurrentState()->getJointModelGroup(arm_group_);
 
@@ -72,6 +72,7 @@ public:
         &MoveitClient::attachHandCB, this, std::placeholders::_1,
         std::placeholders::_2));
 
+    current_state_ = move_group_.getCurrentState(3);
     RCLCPP_INFO(logger_, "service is created");
   }
 
@@ -82,9 +83,12 @@ public:
     RCLCPP_INFO(logger_, "service is called");
     const auto & target_pose = request->poses[0];
     RCLCPP_INFO_STREAM(logger_, "input " << target_pose.position.x);
-    auto current_state = move_group_.getCurrentState(3);
+    current_state_ = move_group_.getCurrentState(3); //this is necessary
     std::vector<double> seed_state, solution;
-    current_state->copyJointGroupPositions(joint_model_group_, seed_state);
+    current_state_->copyJointGroupPositions(joint_model_group_, seed_state);
+    for (auto const & q:seed_state) {
+      RCLCPP_INFO_STREAM(logger_, "q: " << q);
+    }
     ik_solver_->getPositionIK(target_pose, seed_state, solution, respons->err_code);
 
     if (respons->err_code.val != moveit_msgs::msg::MoveItErrorCodes::SUCCESS) {
@@ -93,11 +97,11 @@ public:
     }
 
     move_group_.setMaxVelocityScalingFactor(request->velocity_scale);
-    findClosestSolution(seed_state, solution);
+    findClosestSolution_(seed_state, solution);
     for (size_t i = 0; i < solution.size(); ++i) {
       RCLCPP_INFO_STREAM(logger_, "q[" << i << "]=" << solution[i]);
     }
-    respons->err_code = planAndExecuteJointValue(solution, 30);
+    respons->err_code = planAndExecuteJointValue_(solution, 30);
     RCLCPP_INFO(logger_, "service is retrun");
   }
 
@@ -115,33 +119,48 @@ public:
     const std::shared_ptr<hello_moveit::srv::ApplyCollisionObjectFromMesh::Request> request,
     std::shared_ptr<hello_moveit::srv::ApplyCollisionObjectFromMesh::Response> respons)
   {
-    moveit_msgs::msg::CollisionObject collision_object;
-    collision_object.id = request->object_id;
-    Eigen::Vector3d scale(request->scale, request->scale, request->scale);
-    shapes::Mesh * m = shapes::createMeshFromResource(request->resource_path, scale);
-    shape_msgs::msg::Mesh co_mesh;
-    shapes::ShapeMsg co_mesh_msg;
-    shapes::constructMsgFromShape(m, co_mesh_msg);
-    co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
-    collision_object.meshes.push_back(co_mesh);
-    collision_object.mesh_poses.push_back(request->pose);
-    collision_object.operation = request->operation;
+    auto object = loadObjectFromMesh_<hello_moveit::srv::ApplyCollisionObjectFromMesh::Request>(
+      request);
+
+    object.operation = request->operation;
     if (request->frame_id.empty()) {
-      collision_object.header.frame_id = move_group_.getPlanningFrame();
+      object.header.frame_id = move_group_.getPlanningFrame();
     } else {
-      collision_object.header.frame_id = request->frame_id;
+      object.header.frame_id = request->frame_id;
     }
 
-    respons->is_success = planning_scene_interface_.applyCollisionObject(collision_object);
+    respons->is_success = planning_scene_interface_.applyCollisionObject(object);
   }
 
   void attachHandCB(
     const std::shared_ptr<hello_moveit::srv::AttachHand::Request> request,
     std::shared_ptr<hello_moveit::srv::AttachHand::Response> respons)
   {
+    auto object = loadObjectFromMesh_<hello_moveit::srv::AttachHand::Request>(request);
+
+    object.header.frame_id = move_group_.getEndEffectorLink();
+    object.operation = object.ADD;
+    moveit_msgs::msg::AttachedCollisionObject acobj;
+    acobj.link_name = move_group_.getEndEffectorLink();
+    acobj.object = object;
+    acobj.touch_links = request->touch_links;
+    respons->is_success = planning_scene_interface_.applyAttachedCollisionObject(acobj);
+  }
+
+  void checkCollisionCB(
+    const std::shared_ptr<hello_moveit::srv::CheckCollision::Request> request,
+    std::shared_ptr<hello_moveit::srv::CheckCollision::Response> respons)
+  {
+
+  }
+
+private:
+  template<typename RequestType>
+  static moveit_msgs::msg::CollisionObject loadObjectFromMesh_(
+    const std::shared_ptr<RequestType> request)
+  {
     moveit_msgs::msg::CollisionObject object;
     object.id = request->object_id;
-    object.header.frame_id = move_group_.getEndEffectorLink();
     Eigen::Vector3d scale(request->scale, request->scale, request->scale);
     shapes::Mesh * m = shapes::createMeshFromResource(request->resource_path, scale);
     shape_msgs::msg::Mesh co_mesh;
@@ -150,18 +169,12 @@ public:
     co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
     object.meshes.push_back(co_mesh);
     object.mesh_poses.push_back(request->pose);
-    object.operation = object.ADD;
-
-    moveit_msgs::msg::AttachedCollisionObject acobj;
-    acobj.link_name = move_group_.getEndEffectorLink();
-    acobj.object = object;
-    acobj.touch_links = request->touch_links;
-    respons->is_success = planning_scene_interface_.applyAttachedCollisionObject(acobj);
+    return object;
   }
 
-private:
+
   // this function my not necessary depends on kinematic plugin
-  void findClosestSolution(const std::vector<double> & current_q, std::vector<double> & solution)
+  void findClosestSolution_(const std::vector<double> & current_q, std::vector<double> & solution)
   {
     for (std::size_t i = 0; i < current_q.size(); ++i) {
       //RCLCPP_INFO(logger, "Joint %s: %f %f", joint_name[i].c_str(), solution[i], current_q[i]);
@@ -179,8 +192,7 @@ private:
     }
   }
 
-
-  moveit::core::MoveItErrorCode planAndExecuteJointValue(
+  moveit::core::MoveItErrorCode planAndExecuteJointValue_(
     const std::vector<double> & q,
     const int retry)
   {
@@ -225,7 +237,11 @@ private:
   rclcpp::Service<hello_moveit::srv::AttachHand>::SharedPtr
     attach_hand_srv_;
 
+  rclcpp::Service<hello_moveit::srv::CheckCollision>::SharedPtr
+    check_collision_srv_;
+
   kinematics::KinematicsBaseConstPtr ik_solver_;
+  moveit::core::RobotStatePtr current_state_;
   const moveit::core::JointModelGroup * joint_model_group_;
   std::vector<moveit::core::VariableBounds> joint_bonds_;
   rclcpp::Logger logger_;

@@ -47,6 +47,7 @@ set(srv_files
   "msgs/srv/ApplyCollisionObject.srv"
   "msgs/srv/ApplyCollisionObjectFromMesh.srv"
   "msgs/srv/AttachHand.srv"
+  "msgs/srv/CheckCollision.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -55,6 +56,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   DEPENDENCIES
   builtin_interfaces
   moveit_msgs
+  sensor_msgs
 )
 ament_export_dependencies(rosidl_default_runtime)
 
