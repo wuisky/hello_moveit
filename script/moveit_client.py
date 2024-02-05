@@ -3,9 +3,10 @@ import time
 from geometry_msgs.msg import Pose
 from hello_moveit.srv import (ApplyCollisionObject,
                               ApplyCollisionObjectFromMesh, AttachHand,
-                              PlanExecutePoses)
+                              CheckCollision, PlanExecutePoses)
 from moveit_msgs.msg import CollisionObject, MoveItErrorCodes
 import rclpy
+from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
 
 
@@ -71,7 +72,7 @@ def apply_collision_object_from_mesh(node):
 def attach_hand(node):
     attach_hand_cli = node.create_client(AttachHand, 'attach_hand')
     req = AttachHand.Request()
-    req.resource_path = "package://hello_moveit/cad/robotiq_gripper/robotiq_2F_adaptive_gripper_rough.STL"
+    req.resource_path = 'package://hello_moveit/cad/robotiq_gripper/robotiq_2F_adaptive_gripper_rough.STL'
     req.object_id = 'robotiq_hand'
     req.scale = 0.001
     grab_pose = Pose()
@@ -88,6 +89,27 @@ def attach_hand(node):
         node.get_logger().error('attach hand fail!!')
     else:
         node.get_logger().info('success!')
+
+
+def check_collision(node):
+    check_collision_cli = node.create_client(CheckCollision, 'check_collision')
+    req = CheckCollision.Request()
+    js = JointState()
+    js.name = [
+        'shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint',
+        'wrist_2_joint', 'wrist_3_joint'
+    ]
+    js.position = [0.0] * len(js.name)
+    node.get_logger().info(f'pos: {js.position}')
+    req.joint_state = js
+    while not check_collision_cli.wait_for_service(timeout_sec=1.0):
+        node.get_logger().info('check_collision service not ready, sleep 1sec')
+    future = check_collision_cli.call_async(req)
+    rclpy.spin_until_future_complete(node, future)
+    if future.result().collision_pairs:
+        node.get_logger().warn('\n'.join(f'{pairs}' for pairs in future.result().collision_pairs))
+    else:
+        node.get_logger().info('no collision')
 
 def plan_execute_poses(node):
     plan_execute_poses_cli = node.create_client(PlanExecutePoses, 'plan_execute_poses')
@@ -114,13 +136,14 @@ def plan_execute_poses(node):
         node.get_logger().info('success!')
 
 
-def main()->None:
+def main() -> None:
     rclpy.init()
     node = rclpy.create_node('oreore')
 
     apply_collision_object(node)
     apply_collision_object_from_mesh(node)
     attach_hand(node)
+    check_collision(node)
     plan_execute_poses(node)
 
     node.destroy_node()

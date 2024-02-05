@@ -9,6 +9,7 @@
 #include <geometric_shapes/shape_operations.h>
 #include <tf2_eigen/tf2_eigen.hpp>
 
+#include "hello_moveit/msg/collision_pair.hpp"
 #include "hello_moveit/srv/apply_collision_object.hpp"
 #include "hello_moveit/srv/apply_collision_object_from_mesh.hpp"
 #include "hello_moveit/srv/attach_hand.hpp"
@@ -24,8 +25,9 @@ public:
   MoveitClient(
     const std::string arm_group,
     std::shared_ptr<rclcpp::Node> node,
-    MoveGroupInterface & move_group)
-  : arm_group_(arm_group), node_(node), move_group_(move_group),
+    MoveGroupInterface & move_group,
+    planning_scene::PlanningScene & planning_scene)
+  : arm_group_(arm_group), node_(node), move_group_(move_group), planning_scene_(planning_scene),
     logger_(node->get_logger()) {}
 
   void initServer()
@@ -70,6 +72,12 @@ public:
       "attach_hand",
       std::bind(
         &MoveitClient::attachHandCB, this, std::placeholders::_1,
+        std::placeholders::_2));
+
+    check_collision_srv_ = node_->create_service<hello_moveit::srv::CheckCollision>(
+      "check_collision",
+      std::bind(
+        &MoveitClient::checkCollisionCB, this, std::placeholders::_1,
         std::placeholders::_2));
 
     current_state_ = move_group_.getCurrentState(3);
@@ -117,6 +125,14 @@ public:
       request->object.header.frame_id = move_group_.getPlanningFrame();
     }
     respons->is_success = planning_scene_interface_.applyCollisionObject(request->object);
+
+    moveit_msgs::msg::PlanningSceneWorld psw;
+    psw.collision_objects.push_back(request->object);
+    auto ps = moveit_msgs::msg::PlanningScene();
+    ps.world = psw;
+    ps.is_diff = true;
+    //planning_scene.setPlanningSceneMsg(ps);
+    planning_scene_.setPlanningSceneDiffMsg(ps);
   }
 
   void applyCollisionObjectFromMeshCB(
@@ -125,7 +141,6 @@ public:
   {
     auto object = loadObjectFromMesh_<hello_moveit::srv::ApplyCollisionObjectFromMesh::Request>(
       request);
-
     object.operation = request->operation;
     if (request->frame_id.empty()) {
       object.header.frame_id = move_group_.getPlanningFrame();
@@ -140,8 +155,8 @@ public:
     const std::shared_ptr<hello_moveit::srv::AttachHand::Request> request,
     std::shared_ptr<hello_moveit::srv::AttachHand::Response> respons)
   {
+    // attach to planning_scene
     auto object = loadObjectFromMesh_<hello_moveit::srv::AttachHand::Request>(request);
-
     object.header.frame_id = move_group_.getEndEffectorLink();
     object.operation = object.ADD;
     moveit_msgs::msg::AttachedCollisionObject acobj;
@@ -149,13 +164,72 @@ public:
     acobj.object = object;
     acobj.touch_links = request->touch_links;
     respons->is_success = planning_scene_interface_.applyAttachedCollisionObject(acobj);
+
+    // attach to current_state
+    Eigen::Vector3d scale(request->scale, request->scale, request->scale);
+    shapes::ShapePtr shape_ptr(shapes::createMeshFromResource(request->resource_path, scale));
+    std::vector<shapes::ShapeConstPtr> shapes;
+    shapes.push_back(shape_ptr);
+    Eigen::Isometry3d zero_pose(Eigen::Isometry3d::Identity());
+    auto shape_pose = convertPoseToIsometry3d_(request->pose);
+    EigenSTL::vector_Isometry3d shape_poses;
+    shape_poses.push_back(shape_pose);
+    current_state_->attachBody(
+      object.id, zero_pose, shapes, shape_poses,
+      request->touch_links, acobj.link_name);
   }
 
   void checkCollisionCB(
     const std::shared_ptr<hello_moveit::srv::CheckCollision::Request> request,
     std::shared_ptr<hello_moveit::srv::CheckCollision::Response> respons)
   {
+    collision_detection::CollisionRequest collision_request;
+    collision_request.group_name = arm_group_;
+    collision_request.contacts = true;
+    // collision_request.cost = true;
+    // collision_request.max_cost_sources = collision_request.max_contacts;
+    // collision_request.max_contacts *= collision_request.max_contacts;
+    collision_request.max_contacts = 100;
+    collision_detection::CollisionResult collision_result;
 
+    // joint angle buckup
+    std::vector<double> q_temp;
+    current_state_->copyJointGroupPositions(joint_model_group_, q_temp);
+
+    current_state_->setVariablePositions(
+      request->joint_state.name,
+      request->joint_state.position);
+
+    for (const auto & name : request->joint_state.name) {
+      RCLCPP_INFO_STREAM(logger_, "CheckCollisionCB:name " << name);
+    }
+    for (const auto & q : request->joint_state.position) {
+      RCLCPP_INFO_STREAM(logger_, "CheckCollisionCB:q " << q);
+    }
+
+    planning_scene_.checkCollision(collision_request, collision_result, *current_state_);
+    RCLCPP_INFO_STREAM(
+      logger_, "Current state is " << (collision_result.collision ? "in" : "not in")
+                                   << " collision");
+
+    if (collision_result.collision) {
+      for (const auto & entry : collision_result.contacts) {
+        const auto & key = entry.first;
+        auto collision_pair = hello_moveit::msg::CollisionPair();
+        collision_pair.first = key.first;
+        collision_pair.second = key.second;
+        respons->collision_pairs.push_back(collision_pair);
+        RCLCPP_INFO_STREAM(logger_, "collision between:" << key.first << ", " << key.second);
+      }
+    }
+
+    // collision = planning_scene_.isStateColliding(*current_state, "", true);
+    // RCLCPP_INFO_STREAM(
+    //   logger, "test2: Current state is " << (collision ? "in" : "not in")
+    //                                      << " collision");
+
+    // restore joint angles
+    current_state_->setJointGroupPositions(joint_model_group_, q_temp);
   }
 
 private:
@@ -244,6 +318,14 @@ private:
   const std::string arm_group_;
   std::shared_ptr<rclcpp::Node> node_;
   MoveGroupInterface & move_group_;
+  planning_scene::PlanningScene & planning_scene_;
+  rclcpp::Logger logger_;
+  kinematics::KinematicsBaseConstPtr ik_solver_;
+  moveit::core::RobotStatePtr current_state_;
+  const moveit::core::JointModelGroup * joint_model_group_;
+  std::vector<moveit::core::VariableBounds> joint_bonds_;
+  moveit::planning_interface::PlanningSceneInterface planning_scene_interface_;
+
   rclcpp::Service<hello_moveit::srv::PlanExecutePoses>::SharedPtr
     plan_execute_poses_srv_;
 
@@ -258,13 +340,6 @@ private:
 
   rclcpp::Service<hello_moveit::srv::CheckCollision>::SharedPtr
     check_collision_srv_;
-
-  kinematics::KinematicsBaseConstPtr ik_solver_;
-  moveit::core::RobotStatePtr current_state_;
-  const moveit::core::JointModelGroup * joint_model_group_;
-  std::vector<moveit::core::VariableBounds> joint_bonds_;
-  rclcpp::Logger logger_;
-  moveit::planning_interface::PlanningSceneInterface planning_scene_interface_;
 };
 
 
@@ -287,7 +362,12 @@ int main(int argc, char * argv[])
 
   // Create the MoveIt MoveGroup Interface
   auto move_group = MoveGroupInterface(node, kARM_GROUP);
-  MoveitClient mc(kARM_GROUP, node, move_group);
+  robot_model_loader::RobotModelLoader robot_model_loader(node);
+  const moveit::core::RobotModelPtr & kinematic_model = robot_model_loader.getModel();
+  planning_scene::PlanningScene planning_scene(kinematic_model);
+
+
+  MoveitClient mc(kARM_GROUP, node, move_group, planning_scene);
   mc.initServer();
 
   // wait until SIGTERM
