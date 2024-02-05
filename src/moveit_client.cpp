@@ -73,6 +73,11 @@ public:
         std::placeholders::_2));
 
     current_state_ = move_group_.getCurrentState(3);
+    std::vector<double> seed_state, solution;
+    current_state_->copyJointGroupPositions(joint_model_group_, seed_state);
+    for (auto const & q:seed_state) {
+      RCLCPP_INFO_STREAM(logger_, "q_init: " << q);
+    }
     RCLCPP_INFO(logger_, "service is created");
   }
 
