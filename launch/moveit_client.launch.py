@@ -111,7 +111,7 @@ def generate_launch_description():
             robot_description,
             robot_description_semantic,
             robot_description_kinematics,
-            {"use_sim_time": True},
+            # {"use_sim_time": True},
         ],
         #prefix='gdb -ex run --args',
         prefix=['xterm -e'],

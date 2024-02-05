@@ -88,7 +88,6 @@ public:
     RCLCPP_INFO(logger_, "service is called");
     const auto & target_pose = request->poses[0];
     RCLCPP_INFO_STREAM(logger_, "input " << target_pose.position.x);
-    current_state_ = move_group_.getCurrentState(3); //this is necessary
     std::vector<double> seed_state, solution;
     current_state_->copyJointGroupPositions(joint_model_group_, seed_state);
     for (auto const & q:seed_state) {
