@@ -24,13 +24,20 @@ def apply_collision_object(node):
     obj.primitives.append(sp)
 
     obj_pose = Pose()
-    obj_pose.orientation.w = 1.0
-    obj_pose.orientation.x = 0.0
-    obj_pose.orientation.y = 0.0
-    obj_pose.orientation.z = 0.0
-    obj_pose.position.x = 0.3
-    obj_pose.position.y = 0.0
-    obj_pose.position.z = 0.5
+    # obj_pose.orientation.w = 1.0
+    # obj_pose.orientation.x = 0.0
+    # obj_pose.orientation.y = 0.0
+    # obj_pose.orientation.z = 0.0
+    # obj_pose.position.x = 0.3
+    # obj_pose.position.y = 0.0
+    # obj_pose.position.z = 0.5
+    obj_pose.orientation.w = 0.5
+    obj_pose.orientation.x = 0.5
+    obj_pose.orientation.y = -0.5
+    obj_pose.orientation.z = 0.5
+    obj_pose.position.x = 1.3
+    obj_pose.position.y = 0.85
+    obj_pose.position.z = 0.1
     obj.primitive_poses.append(obj_pose)
     req = ApplyCollisionObject.Request()
     req.object = obj

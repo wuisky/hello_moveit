@@ -184,7 +184,8 @@ public:
     std::shared_ptr<hello_moveit::srv::CheckCollision::Response> respons)
   {
     collision_detection::CollisionRequest collision_request;
-    collision_request.group_name = arm_group_;
+    // for checking all links attached to robot, leave group_name empty
+    // collision_request.group_name = arm_group_;
     collision_request.contacts = true;
     // collision_request.cost = true;
     // collision_request.max_cost_sources = collision_request.max_contacts;
@@ -223,13 +224,9 @@ public:
       }
     }
 
-    // collision = planning_scene_.isStateColliding(*current_state, "", true);
-    // RCLCPP_INFO_STREAM(
-    //   logger, "test2: Current state is " << (collision ? "in" : "not in")
-    //                                      << " collision");
-
     // restore joint angles
     current_state_->setJointGroupPositions(joint_model_group_, q_temp);
+    current_state_->update();
   }
 
 private:
