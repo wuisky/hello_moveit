@@ -304,6 +304,8 @@ int main(int argc, char * argv[])
     moveit_msgs::msg::AttachedCollisionObject acobj;
     acobj.link_name = move_group_interface.getEndEffectorLink();
     acobj.object = object_to_attach;
+
+    RCLCPP_INFO_STREAM(logger, "acobj linkname:" << acobj.link_name);//tool0
     std::vector<std::string> touch_links;
     touch_links.push_back("wrist_3_link");
     acobj.touch_links = touch_links;
@@ -452,6 +454,12 @@ int main(int argc, char * argv[])
     return 1;
   }
   findClosestSolution(seed_state, joint_bonds, solution);
+
+  for (std::size_t i = 0; i < solution.size(); ++i) {
+    RCLCPP_INFO(logger, "Joint %s: %f", joint_name[i].c_str(), solution[i]);
+  }
+
+
   planAndExecuteJointValue(node, solution, 30, move_group_interface);
 
   current_state = move_group_interface.getCurrentState(10);

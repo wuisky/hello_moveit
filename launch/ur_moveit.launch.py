@@ -252,7 +252,8 @@ def launch_setup(context, *args, **kwargs):
         ],
     )
 
-    nodes_to_start:list[Union[Node, IncludeLaunchDescription]] = [move_group_node, rviz_node]
+    nodes_to_start:list[Union[Node, IncludeLaunchDescription, GroupAction,
+                              TimerAction]] = [move_group_node, rviz_node]
 
     ## include ur bringup
     launch_ur_bringup = IncludeLaunchDescription(

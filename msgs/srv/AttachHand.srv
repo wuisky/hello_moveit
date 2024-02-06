@@ -1,0 +1,7 @@
+string resource_path
+string object_id
+float32 scale
+geometry_msgs/Pose pose
+string[] touch_links
+---
+bool is_success

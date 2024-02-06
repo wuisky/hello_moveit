@@ -1,0 +1,9 @@
+string resource_path
+string object_id
+string frame_id
+float32 scale
+geometry_msgs/Pose pose
+# operation defined in moveit_msgs/CollisionObject.msg
+byte operation
+---
+bool is_success

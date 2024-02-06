@@ -1,0 +1,3 @@
+sensor_msgs/JointState joint_state
+---
+hello_moveit/CollisionPair[] collision_pairs

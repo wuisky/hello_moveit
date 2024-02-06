@@ -38,11 +38,25 @@ include_directories(
   include
 )
 
-rosidl_generate_interfaces(${PROJECT_NAME}
+set(msg_files
+  "msgs/msg/CollisionPair.msg"
+)
+
+set(srv_files
   "msgs/srv/PlanExecutePoses.srv"
+  "msgs/srv/ApplyCollisionObject.srv"
+  "msgs/srv/ApplyCollisionObjectFromMesh.srv"
+  "msgs/srv/AttachHand.srv"
+  "msgs/srv/CheckCollision.srv"
+)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${msg_files}
+  ${srv_files}
   DEPENDENCIES
   builtin_interfaces
   moveit_msgs
+  sensor_msgs
 )
 ament_export_dependencies(rosidl_default_runtime)
 
