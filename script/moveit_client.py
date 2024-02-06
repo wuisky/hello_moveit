@@ -10,11 +10,11 @@ from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
 
 
-def apply_collision_object(node):
+def apply_collision_object(node, operation=CollisionObject.ADD):
     apply_collision_object_cli = node.create_client(ApplyCollisionObject, 'apply_collision_object')
     obj = CollisionObject()
     obj.id = 'wall'
-    obj.operation = CollisionObject.ADD
+    obj.operation = operation
     sp = SolidPrimitive()
     sp.type = SolidPrimitive.BOX
     sp.dimensions = [0.0] * 3
@@ -50,7 +50,7 @@ def apply_collision_object(node):
     else:
         node.get_logger().info('success!')
 
-def apply_collision_object_from_mesh(node):
+def apply_collision_object_from_mesh(node, operation=CollisionObject.ADD):
     apply_collision_object_from_mesh_cli = node.create_client(ApplyCollisionObjectFromMesh, 'apply_collision_object_from_mesh')
     req = ApplyCollisionObjectFromMesh.Request()
     req.resource_path = 'package://hello_moveit/cad/shelf_rev5/type1_slid_shelf_change_1.STL'
@@ -65,7 +65,7 @@ def apply_collision_object_from_mesh(node):
     obj_pose.position.y = 0.43848
     obj_pose.position.z = -0.83605
     req.pose = obj_pose
-    req.operation = CollisionObject.ADD
+    req.operation = operation
 
     while not apply_collision_object_from_mesh_cli.wait_for_service(timeout_sec=1.0):
         node.get_logger().info('appply_collision_object_from_mesh service not ready, sleep 1sec')
@@ -152,6 +152,8 @@ def main() -> None:
     attach_hand(node)
     check_collision(node)
     plan_execute_poses(node)
+    apply_collision_object_from_mesh(node, CollisionObject.REMOVE)
+    apply_collision_object(node, CollisionObject.REMOVE)
 
     node.destroy_node()
     rclpy.try_shutdown()
