@@ -1,9 +1,10 @@
-import time
+import copy
 
 from geometry_msgs.msg import Pose
 from hello_moveit.srv import (ApplyCollisionObject,
                               ApplyCollisionObjectFromMesh, AttachHand,
-                              CheckCollision, PlanExecutePoses)
+                              CheckCollision, PlanExecuteCartesianPath,
+                              PlanExecutePoses)
 from moveit_msgs.msg import CollisionObject, MoveItErrorCodes
 import rclpy
 from sensor_msgs.msg import JointState
@@ -24,20 +25,20 @@ def apply_collision_object(node, operation=CollisionObject.ADD):
     obj.primitives.append(sp)
 
     obj_pose = Pose()
-    # obj_pose.orientation.w = 1.0
-    # obj_pose.orientation.x = 0.0
-    # obj_pose.orientation.y = 0.0
-    # obj_pose.orientation.z = 0.0
-    # obj_pose.position.x = 0.3
-    # obj_pose.position.y = 0.0
-    # obj_pose.position.z = 0.5
-    obj_pose.orientation.w = 0.5
-    obj_pose.orientation.x = 0.5
-    obj_pose.orientation.y = -0.5
-    obj_pose.orientation.z = 0.5
-    obj_pose.position.x = 1.3
-    obj_pose.position.y = 0.85
-    obj_pose.position.z = 0.1
+    obj_pose.orientation.w = 1.0
+    obj_pose.orientation.x = 0.0
+    obj_pose.orientation.y = 0.0
+    obj_pose.orientation.z = 0.0
+    obj_pose.position.x = 0.3
+    obj_pose.position.y = 0.0
+    obj_pose.position.z = 0.5
+    # obj_pose.orientation.w = 0.5
+    # obj_pose.orientation.x = 0.5
+    # obj_pose.orientation.y = -0.5
+    # obj_pose.orientation.z = 0.5
+    # obj_pose.position.x = 1.3
+    # obj_pose.position.y = 0.85
+    # obj_pose.position.z = 0.1
     obj.primitive_poses.append(obj_pose)
     req = ApplyCollisionObject.Request()
     req.object = obj
@@ -106,6 +107,7 @@ def check_collision(node):
         'shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint',
         'wrist_2_joint', 'wrist_3_joint'
     ]
+    # check if collision happen when all joint angel is 0.0
     js.position = [0.0] * len(js.name)
     node.get_logger().info(f'pos: {js.position}')
     req.joint_state = js
@@ -118,19 +120,12 @@ def check_collision(node):
     else:
         node.get_logger().info('no collision')
 
-def plan_execute_poses(node):
+
+def plan_execute_poses(node, pose):
     plan_execute_poses_cli = node.create_client(PlanExecutePoses, 'plan_execute_poses')
     req = PlanExecutePoses.Request()
-    req.velocity_scale = 1.0
-    msg = Pose()
-    msg.orientation.w = -0.5
-    msg.orientation.x = 0.5
-    msg.orientation.y = 0.5
-    msg.orientation.z = -0.5
-    msg.position.x = -0.696
-    msg.position.y = 0.052
-    msg.position.z = 0.464
-    req.poses = [msg]
+    req.velocity_scale = 1.0  # you can chage this to slow down robot
+    req.poses = [pose]
 
     while not plan_execute_poses_cli.wait_for_service(timeout_sec=1.0):
         node.get_logger().info('service not ready, sleep 1sec')
@@ -139,6 +134,22 @@ def plan_execute_poses(node):
     rclpy.spin_until_future_complete(node, future)
     if future.result().err_code.val is not MoveItErrorCodes.SUCCESS:
         node.get_logger().error(f'fail!!MoveItErrorCode: {future.result().err_code.val}')
+    else:
+        node.get_logger().info('success!')
+
+def plan_execute_cartesian_path(node, poses):
+    plan_execute_cartesian_cli = node.create_client(PlanExecuteCartesianPath, 'plan_execute_cartesian_path')
+    req = PlanExecuteCartesianPath.Request()
+    req.velocity_scale = 1.0  # you can chage this to slow down robot
+    req.poses = poses
+
+    while not plan_execute_cartesian_cli.wait_for_service(timeout_sec=1.0):
+        node.get_logger().info('service not ready, sleep 1sec')
+
+    future = plan_execute_cartesian_cli.call_async(req)
+    rclpy.spin_until_future_complete(node, future)
+    if not future.result().is_success:
+        node.get_logger().error('faill cartesian_path')
     else:
         node.get_logger().info('success!')
 
@@ -151,7 +162,31 @@ def main() -> None:
     apply_collision_object_from_mesh(node)
     attach_hand(node)
     check_collision(node)
-    plan_execute_poses(node)
+    # send target pose1
+    msg = Pose()
+    msg.orientation.w = -0.5
+    msg.orientation.x = 0.5
+    msg.orientation.y = 0.5
+    msg.orientation.z = -0.5
+    msg.position.x = -0.696
+    msg.position.y = 0.052
+    msg.position.z = 0.464
+    plan_execute_poses(node, msg)
+    # send target pose2
+    msg.orientation.w = -0.5
+    msg.orientation.x = 0.5
+    msg.orientation.y = 0.5
+    msg.orientation.z = -0.5
+    msg.position.x = -0.696
+    msg.position.y = 0.0519
+    msg.position.z = 0.154
+    plan_execute_poses(node, msg)
+    # send catesian path
+    waypoint1 = copy.deepcopy(msg)
+    waypoint2 = copy.deepcopy(msg)
+    waypoint1.position.y += 0.2
+    plan_execute_cartesian_path(node, [waypoint1, waypoint2])
+    # remove object
     apply_collision_object_from_mesh(node, CollisionObject.REMOVE)
     apply_collision_object(node, CollisionObject.REMOVE)
 

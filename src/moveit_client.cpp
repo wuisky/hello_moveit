@@ -15,6 +15,7 @@
 #include "hello_moveit/srv/attach_hand.hpp"
 #include "hello_moveit/srv/check_collision.hpp"
 #include "hello_moveit/srv/plan_execute_poses.hpp"
+#include "hello_moveit/srv/plan_execute_cartesian_path.hpp"
 
 
 using moveit::planning_interface::MoveGroupInterface;
@@ -55,6 +56,13 @@ public:
         &MoveitClient::planExecutePosesCB, this, std::placeholders::_1,
         std::placeholders::_2));
 
+    plan_execute_cartesian_path_srv_ =
+      node_->create_service<hello_moveit::srv::PlanExecuteCartesianPath>(
+      "plan_execute_cartesian_path",
+      std::bind(
+        &MoveitClient::planExecuteCartesianPathCB, this, std::placeholders::_1,
+        std::placeholders::_2));
+
     apply_collision_object_srv_ = node_->create_service<hello_moveit::srv::ApplyCollisionObject>(
       "apply_collision_object",
       std::bind(
@@ -93,9 +101,9 @@ public:
     const std::shared_ptr<hello_moveit::srv::PlanExecutePoses::Request> request,
     std::shared_ptr<hello_moveit::srv::PlanExecutePoses::Response> respons)
   {
-    RCLCPP_INFO(logger_, "service is called");
+    // only execute first pose
+    // until moveit pilz industrial motion planner is backported...
     const auto & target_pose = request->poses[0];
-    RCLCPP_INFO_STREAM(logger_, "input " << target_pose.position.x);
     std::vector<double> seed_state, solution;
     current_state_->copyJointGroupPositions(joint_model_group_, seed_state);
     for (auto const & q:seed_state) {
@@ -113,8 +121,16 @@ public:
     for (size_t i = 0; i < solution.size(); ++i) {
       RCLCPP_INFO_STREAM(logger_, "q[" << i << "]=" << solution[i]);
     }
-    respons->err_code = planAndExecuteJointValue_(solution, 30);
+    respons->err_code = planExecuteJointValue_(solution, 30);
     RCLCPP_INFO(logger_, "service is retrun");
+  }
+
+  void planExecuteCartesianPathCB(
+    const std::shared_ptr<hello_moveit::srv::PlanExecuteCartesianPath::Request> request,
+    std::shared_ptr<hello_moveit::srv::PlanExecuteCartesianPath::Response> respons)
+  {
+    move_group_.setMaxVelocityScalingFactor(request->velocity_scale);
+    respons->is_success = planExecuteCartesianPath_(request->poses);
   }
 
   void applyCollisionObjectCB(
@@ -282,7 +298,7 @@ private:
     }
   }
 
-  moveit::core::MoveItErrorCode planAndExecuteJointValue_(
+  moveit::core::MoveItErrorCode planExecuteJointValue_(
     const std::vector<double> & q,
     const int retry)
   {
@@ -312,6 +328,42 @@ private:
     return err;
   }
 
+  bool planExecuteCartesianPath_(
+    const std::vector<geometry_msgs::msg::Pose> & waypoints,
+    const int retry = 10)
+  {
+    moveit_msgs::msg::RobotTrajectory trajectory;
+    constexpr double kEEF_STEP = 0.01;
+    constexpr double kJUMP_THRESHOLD = 0.0;
+    // path planning bug when avoid_collision is true
+    // i don't know why
+    constexpr bool kAVOID_COLLISION = false;
+    constexpr double kSUCCESS_RATE = 0.9;
+    bool is_success = true;
+    [&]()->void {
+      for (int i = retry; i > 0; i--) {
+        if (move_group_.computeCartesianPath(
+            waypoints, kEEF_STEP, kJUMP_THRESHOLD,
+            trajectory, kAVOID_COLLISION) > kSUCCESS_RATE)
+        {
+          char input;
+          std::cout << "Were you admitted? [y/n]" << std::endl;
+          std::cin >> input;
+          if (input == 'y') {
+            {
+              move_group_.execute(trajectory);
+              return;
+            }
+          }
+        }
+        RCLCPP_WARN_STREAM(logger_, "try to replan");
+      }
+      RCLCPP_ERROR_STREAM(logger_, "planning fail");
+      is_success = false;
+    }();
+    return is_success;
+  }
+
   const std::string arm_group_;
   std::shared_ptr<rclcpp::Node> node_;
   MoveGroupInterface & move_group_;
@@ -325,6 +377,9 @@ private:
 
   rclcpp::Service<hello_moveit::srv::PlanExecutePoses>::SharedPtr
     plan_execute_poses_srv_;
+
+  rclcpp::Service<hello_moveit::srv::PlanExecuteCartesianPath>::SharedPtr
+    plan_execute_cartesian_path_srv_;
 
   rclcpp::Service<hello_moveit::srv::ApplyCollisionObject>::SharedPtr
     apply_collision_object_srv_;
@@ -362,7 +417,6 @@ int main(int argc, char * argv[])
   robot_model_loader::RobotModelLoader robot_model_loader(node);
   const moveit::core::RobotModelPtr & kinematic_model = robot_model_loader.getModel();
   planning_scene::PlanningScene planning_scene(kinematic_model);
-
 
   MoveitClient mc(kARM_GROUP, node, move_group, planning_scene);
   mc.initServer();

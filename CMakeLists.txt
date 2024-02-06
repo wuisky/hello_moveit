@@ -43,11 +43,12 @@ set(msg_files
 )
 
 set(srv_files
-  "msgs/srv/PlanExecutePoses.srv"
   "msgs/srv/ApplyCollisionObject.srv"
   "msgs/srv/ApplyCollisionObjectFromMesh.srv"
   "msgs/srv/AttachHand.srv"
   "msgs/srv/CheckCollision.srv"
+  "msgs/srv/PlanExecuteCartesianPath.srv"
+  "msgs/srv/PlanExecutePoses.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}
