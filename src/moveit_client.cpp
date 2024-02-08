@@ -13,6 +13,7 @@
 #include "hello_moveit/srv/apply_collision_object_from_mesh.hpp"
 #include "hello_moveit/srv/attach_hand.hpp"
 #include "hello_moveit/srv/check_collision.hpp"
+#include "hello_moveit/srv/detach_hand.hpp"
 #include "hello_moveit/srv/plan_execute_poses.hpp"
 #include "hello_moveit/srv/plan_execute_cartesian_path.hpp"
 
@@ -85,6 +86,13 @@ public:
       "check_collision",
       std::bind(
         &MoveitClient::checkCollisionCB, this, std::placeholders::_1,
+        std::placeholders::_2));
+
+
+    detach_hand_srv_ = node_->create_service<hello_moveit::srv::DetachHand>(
+      "detach_hand",
+      std::bind(
+        &MoveitClient::detachHandCB, this, std::placeholders::_1,
         std::placeholders::_2));
 
     current_state_ = move_group_.getCurrentState(3);
@@ -244,6 +252,20 @@ public:
     current_state_->update();
   }
 
+  void detachHandCB(
+    const std::shared_ptr<hello_moveit::srv::DetachHand::Request> request,
+    std::shared_ptr<hello_moveit::srv::DetachHand::Response> respons)
+  {
+    if (move_group_.detachObject(request->object_id)) {
+      std::vector<std::string> object_ids;
+      object_ids.push_back(request->object_id);
+      planning_scene_interface_.removeCollisionObjects(object_ids);
+      respons->is_success = current_state_->clearAttachedBody(request->object_id);
+    } else {
+      respons->is_success = false;
+    }
+  }
+
 private:
   template<typename RequestType>
   static moveit_msgs::msg::CollisionObject loadObjectFromMesh_(
@@ -391,6 +413,9 @@ private:
 
   rclcpp::Service<hello_moveit::srv::CheckCollision>::SharedPtr
     check_collision_srv_;
+
+  rclcpp::Service<hello_moveit::srv::DetachHand>::SharedPtr
+    detach_hand_srv_;
 };
 
 

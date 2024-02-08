@@ -3,8 +3,8 @@ import copy
 from geometry_msgs.msg import Pose
 from hello_moveit.srv import (ApplyCollisionObject,
                               ApplyCollisionObjectFromMesh, AttachHand,
-                              CheckCollision, PlanExecuteCartesianPath,
-                              PlanExecutePoses)
+                              CheckCollision, DetachHand,
+                              PlanExecuteCartesianPath, PlanExecutePoses)
 from moveit_msgs.msg import CollisionObject, MoveItErrorCodes
 import rclpy
 from sensor_msgs.msg import JointState
@@ -120,6 +120,19 @@ def check_collision(node):
     else:
         node.get_logger().info('no collision')
 
+def detach_hand(node):
+    detach_hand_cli = node.create_client(DetachHand, 'detach_hand')
+    req = DetachHand.Request()
+    req.object_id = 'robotiq_hand'
+
+    while not detach_hand_cli.wait_for_service(timeout_sec=1.0):
+        node.get_logger().info('detach hand service not ready, sleep 1sec')
+    future = detach_hand_cli.call_async(req)
+    rclpy.spin_until_future_complete(node, future)
+    if future.result().is_success is not True:
+        node.get_logger().error('detach hand fail!!')
+    else:
+        node.get_logger().info('success!')
 
 def plan_execute_poses(node, pose):
     plan_execute_poses_cli = node.create_client(PlanExecutePoses, 'plan_execute_poses')
@@ -189,6 +202,7 @@ def main() -> None:
     # remove object
     apply_collision_object_from_mesh(node, CollisionObject.REMOVE)
     apply_collision_object(node, CollisionObject.REMOVE)
+    detach_hand(node)
 
     node.destroy_node()
     rclpy.try_shutdown()

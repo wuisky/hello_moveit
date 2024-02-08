@@ -57,6 +57,7 @@ set(srv_files
   "msgs/srv/ApplyCollisionObjectFromMesh.srv"
   "msgs/srv/AttachHand.srv"
   "msgs/srv/CheckCollision.srv"
+  "msgs/srv/DetachHand.srv"
   "msgs/srv/PlanExecuteCartesianPath.srv"
   "msgs/srv/PlanExecutePoses.srv"
 )
