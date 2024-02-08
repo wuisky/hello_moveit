@@ -5,6 +5,16 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
+  -isystem/usr/include/c++/11 \
+  -isystem/usr/include/x86_64-linux-gnu/c++/11 \
+  -isystem/usr/include/c++/11/backward \
+  -isystem/usr/lib/gcc/x86_64-linux-gnu/11/include \
+  -isystem/usr/local/include \
+  -isystem/usr/include/x86_64-linux-gnu \
+  -isystem/usr/include"
+)
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)

@@ -84,8 +84,8 @@ def attach_hand(node):
     req.object_id = 'robotiq_hand'
     req.scale = 0.001
     grab_pose = Pose()
-    grab_pose.orientation.w = 1.0;
-    grab_pose.position.z = 0.0;
+    grab_pose.orientation.w = 1.0
+    grab_pose.position.z = 0.0
     req.pose = grab_pose
     req.touch_links = ['wrist_3_link']
 
