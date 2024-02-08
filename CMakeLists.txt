@@ -102,7 +102,8 @@ ament_target_dependencies(
   rclcpp_lifecycle
   std_msgs
 )
-rosidl_target_interfaces(moveit_client ${PROJECT_NAME} "rosidl_typesupport_cpp")
+rosidl_get_typesupport_target(cpp_typesupport_target  ${PROJECT_NAME} rosidl_typesupport_cpp)
+target_link_libraries(moveit_client "${cpp_typesupport_target}")
 
 # Add executable for using a controller
 set(SERVO_CONTROLLER_INPUT servo_controller_input)
