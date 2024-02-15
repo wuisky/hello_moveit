@@ -1,14 +1,17 @@
 import copy
 
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, PoseStamped
 from hello_moveit.srv import (ApplyCollisionObject,
                               ApplyCollisionObjectFromMesh, AttachHand,
                               CheckCollision, PlanExecuteCartesianPath,
                               PlanExecutePoses)
 from moveit_msgs.msg import CollisionObject, MoveItErrorCodes
+from moveit_msgs.srv import GetPositionFK, GetPositionIK
 import rclpy
 from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
+from std_msgs.msg import String
+from typing import List
 
 
 def apply_collision_object(node, operation=CollisionObject.ADD):
@@ -153,6 +156,92 @@ def plan_execute_cartesian_path(node, poses):
     else:
         node.get_logger().info('success!')
 
+def compute_fk(
+    node,
+    joint_state: JointState) -> Pose:
+    """
+    ROS service client for computing the forward kinematics
+
+    Parameters
+    ----------
+    node
+        Node which will receive server's responces
+    joint_state: JointState
+        Message which contains the joint states and names of the robot
+
+    Returns
+    -------
+    tcp_pose: Pose
+        Tcp pose corresponding to the joint state
+    """
+    # create service client (type, service name)
+    compute_fk_cli = node.create_client(GetPositionFK, 'compute_fk')
+    # initialize and substitute request
+    req = GetPositionFK.Request()
+    req.header.frame_id = 'base_link'
+    req.fk_link_names = ['wrist_3_link']
+    req.robot_state.joint_state = joint_state
+    # wait connection to server
+    while not compute_fk_cli.wait_for_service(timeout_sec=1.0):
+        node.get_logger().info('service not ready, sleep 1sec')
+    # send requests and get responses
+    future = compute_fk_cli.call_async(req)
+    rclpy.spin_until_future_complete(node, future) # wait until getting response
+    rsp = future.result()
+    # check response
+    if rsp.error_code.val is not MoveItErrorCodes.SUCCESS:
+        node.get_logger().error('fail to compute FK')
+    else:
+        node.get_logger().info('success!')
+    # show response
+    tcp_pose = rsp.pose_stamped[0].pose
+    return tcp_pose
+
+def compute_ik(
+    node, 
+    target_tcp_pose: Pose, 
+    initial_joint_state: JointState) -> JointState:
+    """
+    ROS service client for computing the inverse kinematics
+
+    Parameters
+    ----------
+    node
+        Node which will receive server's responces
+    target_tcp_pose: Pose
+        Desired tcp pose
+    initial_joint_state: JointState
+        Initial joint state of the robot which become a hint of computing the IK
+
+    Returns
+    -------
+    target_joint_state: JointState
+        Desired joint states to achieve the given tcp pose
+    """
+    # create service client (type, service name)
+    compute_ik_cli = node.create_client(GetPositionIK, 'compute_ik')
+    # initialize and substitute request
+    req = GetPositionIK.Request()
+    req.ik_request.group_name = 'ur_manipulator'
+    req.ik_request.robot_state.joint_state = initial_joint_state
+    req.ik_request.avoid_collisions = True
+    req.ik_request.pose_stamped = PoseStamped()
+    req.ik_request.pose_stamped.pose = target_tcp_pose
+    # wait connection to server
+    while not compute_ik_cli.wait_for_service(timeout_sec=1.0):
+        node.get_logger().info('service not ready, sleep 1sec')
+    # send requests and get responses
+    future = compute_ik_cli.call_async(req)
+    rclpy.spin_until_future_complete(node, future) # wait until getting response
+    rsp = future.result()
+    # check response
+    if rsp.error_code.val is not MoveItErrorCodes.SUCCESS:
+        node.get_logger().error('fail to compute IK')
+    else:
+        node.get_logger().info('success!')
+    # show response
+    target_joint_state = rsp.solution.joint_state
+    return target_joint_state
 
 def main() -> None:
     rclpy.init()
@@ -171,8 +260,26 @@ def main() -> None:
     msg.position.x = -0.696
     msg.position.y = 0.052
     msg.position.z = 0.464
+
+    # get joint state for moving to the target pose1
+    # NOTE: This is a sample code for testing compute_ik client
+    # NOTE: It seems that IK is computed by using current joint state when the inputted joint state is null
+    msg1 = msg
+    msg2 = JointState()
+    target_joint_state = compute_ik(node, target_tcp_pose=msg1, initial_joint_state=msg2)
+    node.get_logger().info(f'target_joint_state : {target_joint_state}')
+
     plan_execute_poses(node, msg)
+
+    # get current pose of tcp
+    # NOTE: This is a sample code for testing compute_fk client
+    # NOTE: It seems that FK is computed by using current joint state when the inputted joint state is null
+    msg = JointState()
+    current_tcp_pose = compute_fk(node, joint_state=msg)
+    node.get_logger().info(f'current_tcp_pose : {current_tcp_pose}')
+
     # send target pose2
+    msg = Pose()
     msg.orientation.w = -0.5
     msg.orientation.x = 0.5
     msg.orientation.y = 0.5
