@@ -69,7 +69,7 @@ def launch_setup(context, *args, **kwargs):
     use_sim_time = LaunchConfiguration("use_sim_time")
     launch_rviz = LaunchConfiguration("launch_rviz")
     use_realsense = LaunchConfiguration('use_realsense')
-    handeye_calibration = LaunchConfiguration('handeye_calibration')
+    calibration_type = LaunchConfiguration('calibration_type')
 
     hand = LaunchConfiguration('hand')
     # Enable use_tool_communication when the robotiq gripper is selected
@@ -284,7 +284,7 @@ def launch_setup(context, *args, **kwargs):
         }.items(),
         condition=IfCondition(
                     PythonExpression([
-                    handeye_calibration,
+                    str(context.perform_substitution(calibration_type) == 'eye_in_hand'),
                     ' or ',
                     use_realsense
                 ])),
@@ -305,7 +305,7 @@ def launch_setup(context, *args, **kwargs):
         }.items(),
         condition=IfCondition(
                     PythonExpression([
-                    handeye_calibration,
+                    str(context.perform_substitution(calibration_type) == 'eye_on_base'),
                     ' or ',
                     use_realsense
                 ])),
@@ -327,7 +327,7 @@ def launch_setup(context, *args, **kwargs):
         }.items(),
         condition=IfCondition(
                     PythonExpression([
-                    handeye_calibration,
+                    str(context.perform_substitution(calibration_type) != ''),
                     ' or ',
                     use_realsense
                     ])
@@ -342,21 +342,21 @@ def launch_setup(context, *args, **kwargs):
         PathJoinSubstitution([FindPackageShare('easy_handeye2'), 'launch', 'calibrate.launch.py'])
     ]),
                                                     launch_arguments={
-                                                        'calibration_type': 'eye_in_hand',
+                                                        'calibration_type': context.perform_substitution(calibration_type),
                                                         'tracking_base_frame': context.perform_substitution(tracking_base_frame),
                                                         'tracking_marker_frame': f'aruco_marker_{calibration_marker}',
                                                         'robot_base_frame': 'base_link',
                                                         'robot_effector_frame': 'tool0',
-                                                        'name': 'easy_handeye2_demo_eih',
+                                                        'name': f'easy_handeye2_{context.perform_substitution(calibration_type)}',
                                                     }.items(),
-                                                    condition=IfCondition(handeye_calibration))
+                                                    condition=IfCondition(str(context.perform_substitution(calibration_type) != '')))
     easy_handeye2_delay = TimerAction(period=5.0, actions=[launch_easy_handeye2])
     nodes_to_start.append(easy_handeye2_delay)
 
     # static transform publisher
     calibration_yaml = load_yaml("hello_moveit", "config/easy_handeye2_demo_eih.calib")
     camera_tf_node = Node(package='tf2_ros', executable='static_transform_publisher', name='camera_tf_publisher',
-                          condition=IfCondition(PythonExpression(['not ', handeye_calibration, ' and ', use_realsense])),
+                          condition=IfCondition(PythonExpression(['not ', str(calibration_type == 'eye_in_hand'), ' and ', use_realsense])),
                           arguments=[
                               "--x", str(calibration_yaml["transform"]["translation"]["x"]),
                               "--y", str(calibration_yaml["transform"]["translation"]["y"]),
@@ -504,6 +504,10 @@ def generate_launch_description():
         DeclareLaunchArgument("handeye_calibration",
                               default_value="False",
                               description="Launch easy_handeye2_calibrationi?"))
+    declared_arguments.append(
+        DeclareLaunchArgument("calibration_type",
+                              default_value="",
+                              description="easy_handeye2_calibration calibration type"))
     declared_arguments.append(
         DeclareLaunchArgument("use_realsense",
                               default_value="False",
