@@ -271,13 +271,16 @@ def launch_setup(context, *args, **kwargs):
     nodes_to_start.append(launch_ur_bringup)
 
     ## include realsense2_camera
-    launch_realsense2_camera = IncludeLaunchDescription(
+    # hand camera
+    launch_hand_realsense2_camera = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([FindPackageShare('realsense2_camera'), 'launch', 'rs_launch.py'])
         ]),
         launch_arguments={
+            'camera_name': 'hand_camera',
             'pointcloud.enable': 'true',
-            # 'rgb_camera.profile': '1280x720x30'
+            'serial_no': '_128422272064',
+            # 'depth_module.profile': '1280x720x30'
         }.items(),
         condition=IfCondition(
                     PythonExpression([
@@ -286,7 +289,28 @@ def launch_setup(context, *args, **kwargs):
                     use_realsense
                 ])),
     )
-    nodes_to_start.append(launch_realsense2_camera)
+    nodes_to_start.append(launch_hand_realsense2_camera)
+
+    # base camera
+    launch_base_realsense2_camera = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([FindPackageShare('realsense2_camera'), 'launch', 'rs_launch.py'])
+        ]),
+        launch_arguments={
+            'camera_name': 'base_camera',
+            'pointcloud.enable': 'true',
+            'serial_no': '_832112072400',
+            # 'rgb_camera.profile': '1280x720x30'
+            # 'depth_module.profile': '1280x720x30'
+        }.items(),
+        condition=IfCondition(
+                    PythonExpression([
+                    handeye_calibration,
+                    ' or ',
+                    use_realsense
+                ])),
+    )
+    nodes_to_start.append(launch_base_realsense2_camera)
 
     ## include aruco recognition
     launch_aruco_recognition = IncludeLaunchDescription(PythonLaunchDescriptionSource([
