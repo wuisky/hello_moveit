@@ -1,0 +1,20 @@
+parameters:
+  name: easy_handeye2_eye_on_base
+  calibration_type: eye_on_base
+  robot_base_frame: base_link
+  robot_effector_frame: tool0
+  tracking_base_frame: base_camera_color_optical_frame
+  tracking_marker_frame: aruco_marker_2
+  freehand_robot_movement: true
+  move_group_namespace: /
+  move_group: manipulator
+transform:
+  translation:
+    x: 0.4237920806543872
+    y: 0.11545448337656129
+    z: 1.138024576900192
+  rotation:
+    x: 0.8079997959860473
+    y: 0.00547005481660412
+    z: -0.5803963892056093
+    w: 0.1012246984875734

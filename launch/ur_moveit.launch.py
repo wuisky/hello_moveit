@@ -354,8 +354,9 @@ def launch_setup(context, *args, **kwargs):
     nodes_to_start.append(easy_handeye2_delay)
 
     # static transform publisher
-    calibration_yaml = load_yaml("hello_moveit", "config/easy_handeye2_demo_eih.calib")
-    camera_tf_node = Node(package='tf2_ros', executable='static_transform_publisher', name='camera_tf_publisher',
+    # hand camera
+    calibration_yaml = load_yaml("hello_moveit", "config/easy_handeye2_eye_in_hand.calib")
+    hand_camera_tf_node = Node(package='tf2_ros', executable='static_transform_publisher', name='hand_camera_tf_publisher',
                           condition=IfCondition(PythonExpression(['not ', str(calibration_type == 'eye_in_hand'), ' and ', use_realsense])),
                           arguments=[
                               "--x", str(calibration_yaml["transform"]["translation"]["x"]),
@@ -369,8 +370,27 @@ def launch_setup(context, *args, **kwargs):
                               "--child-frame-id", calibration_yaml["parameters"]["tracking_base_frame"],
                             ],
                          )
-    camera_tf_node_delay = TimerAction(period=5.0, actions=[camera_tf_node])
-    nodes_to_start.append(camera_tf_node_delay)
+    hand_camera_tf_node_delay = TimerAction(period=5.0, actions=[hand_camera_tf_node])
+    nodes_to_start.append(hand_camera_tf_node_delay)
+
+    # base camera
+    calibration_yaml = load_yaml("hello_moveit", "config/easy_handeye2_eye_on_base.calib")
+    base_camera_tf_node = Node(package='tf2_ros', executable='static_transform_publisher', name='base_camera_tf_publisher',
+                          condition=IfCondition(PythonExpression(['not ', str(calibration_type == 'eye_on_base'), ' and ', use_realsense])),
+                          arguments=[
+                              "--x", str(calibration_yaml["transform"]["translation"]["x"]),
+                              "--y", str(calibration_yaml["transform"]["translation"]["y"]),
+                              "--z", str(calibration_yaml["transform"]["translation"]["z"]),
+                              "--qx", str(calibration_yaml["transform"]["rotation"]["x"]),
+                              "--qy", str(calibration_yaml["transform"]["rotation"]["y"]),
+                              "--qz", str(calibration_yaml["transform"]["rotation"]["z"]),
+                              "--qw", str(calibration_yaml["transform"]["rotation"]["w"]),
+                              "--frame-id", calibration_yaml["parameters"]["robot_base_frame"],
+                              "--child-frame-id", calibration_yaml["parameters"]["tracking_base_frame"],
+                            ],
+                         )
+    base_camera_tf_node_delay = TimerAction(period=5.0, actions=[base_camera_tf_node])
+    nodes_to_start.append(base_camera_tf_node_delay)
 
     ## robotiq 2f-140
     tool_communication_node = Node(
