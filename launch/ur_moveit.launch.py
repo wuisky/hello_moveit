@@ -280,7 +280,7 @@ def launch_setup(context, *args, **kwargs):
             'camera_name': 'hand_camera',
             'pointcloud.enable': 'true',
             'serial_no': '_128422272064',
-            # 'depth_module.profile': '1280x720x30'
+            'depth_module.profile': '1280x720x30'
         }.items(),
         condition=IfCondition(
                     PythonExpression([
@@ -300,8 +300,9 @@ def launch_setup(context, *args, **kwargs):
             'camera_name': 'base_camera',
             'pointcloud.enable': 'true',
             'serial_no': '_832112072400',
-            # 'rgb_camera.profile': '1280x720x30'
-            # 'depth_module.profile': '1280x720x30'
+            'rgb_camera.profile': '1280x720x30',
+            'depth_module.profile': '1280x720x30',
+            'align_depth.enable': 'true'
         }.items(),
         condition=IfCondition(
                     PythonExpression([
