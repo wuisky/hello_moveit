@@ -10,9 +10,7 @@ from moveit_msgs.srv import GetPositionFK, GetPositionIK
 import rclpy
 from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
-from std_msgs.msg import String
-from typing import List
-
+from typing import Optional
 
 def apply_collision_object(node, operation=CollisionObject.ADD):
     apply_collision_object_cli = node.create_client(ApplyCollisionObject, 'apply_collision_object')
@@ -158,7 +156,7 @@ def plan_execute_cartesian_path(node, poses):
 
 def compute_fk(
     node,
-    joint_state: JointState = None) -> Pose:
+    joint_state: Optional[JointState] = None) -> Pose:
     """
     ROS service client for computing the forward kinematics
 
@@ -202,7 +200,7 @@ def compute_fk(
 def compute_ik(
     node, 
     target_tcp_pose: Pose, 
-    initial_joint_state: JointState = None) -> JointState:
+    initial_joint_state: Optional[JointState] = None) -> JointState:
     """
     ROS service client for computing the inverse kinematics
 
