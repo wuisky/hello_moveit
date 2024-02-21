@@ -508,6 +508,15 @@ int main(int argc, char * argv[])
   waypoints.push_back(target_pose3);
   planAndExecuteCartesianPath(node, waypoints, 30, move_group_interface);
 
+  //  detachhand
+  move_group_interface.detachObject("robotiq_hand");
+
+  std::vector<std::string> object_ids;
+  object_ids.push_back("robotiq_hand");
+  moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
+  planning_scene_interface.removeCollisionObjects(object_ids);
+  // current_state->clearAttachedBody("robotiq_hand");
+
   // Shutdown ROS
   rclcpp::shutdown();
   spinner.join();
