@@ -1,5 +1,7 @@
 import copy
+from typing import Optional
 
+import rclpy
 from geometry_msgs.msg import Pose, PoseStamped
 from hello_moveit.srv import (ApplyCollisionObject,
                               ApplyCollisionObjectFromMesh, AttachHand,
@@ -7,10 +9,9 @@ from hello_moveit.srv import (ApplyCollisionObject,
                               PlanExecutePoses)
 from moveit_msgs.msg import CollisionObject, MoveItErrorCodes
 from moveit_msgs.srv import GetPositionFK, GetPositionIK
-import rclpy
 from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
-from typing import Optional
+
 
 def apply_collision_object(node, operation=CollisionObject.ADD):
     apply_collision_object_cli = node.create_client(ApplyCollisionObject, 'apply_collision_object')
