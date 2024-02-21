@@ -158,7 +158,7 @@ def plan_execute_cartesian_path(node, poses):
 
 def compute_fk(
     node,
-    joint_state: JointState) -> Pose:
+    joint_state: JointState = None) -> Pose:
     """
     ROS service client for computing the forward kinematics
 
@@ -168,6 +168,7 @@ def compute_fk(
         Node which will receive server's responces
     joint_state: JointState
         Message which contains the joint states and names of the robot
+        If the inputted joint state is empty, FK is computed by using the current joint_state
 
     Returns
     -------
@@ -180,7 +181,10 @@ def compute_fk(
     req = GetPositionFK.Request()
     req.header.frame_id = 'base_link'
     req.fk_link_names = ['wrist_3_link']
-    req.robot_state.joint_state = joint_state
+    if joint_state is None:
+        req.robot_state.joint_state = JointState()
+    else:
+        req.robot_state.joint_state = joint_state
     # wait connection to server
     while not compute_fk_cli.wait_for_service(timeout_sec=1.0):
         node.get_logger().info('service not ready, sleep 1sec')
@@ -200,7 +204,7 @@ def compute_fk(
 def compute_ik(
     node, 
     target_tcp_pose: Pose, 
-    initial_joint_state: JointState) -> JointState:
+    initial_joint_state: JointState = None) -> JointState:
     """
     ROS service client for computing the inverse kinematics
 
@@ -212,6 +216,7 @@ def compute_ik(
         Desired tcp pose
     initial_joint_state: JointState
         Initial joint state of the robot which become a hint of computing the IK
+        If the inputted joint state is empty, IK is computed by using the current joint_state
 
     Returns
     -------
@@ -223,7 +228,10 @@ def compute_ik(
     # initialize and substitute request
     req = GetPositionIK.Request()
     req.ik_request.group_name = 'ur_manipulator'
-    req.ik_request.robot_state.joint_state = initial_joint_state
+    if initial_joint_state is None:
+        req.ik_request.robot_state.joint_state = JointState()
+    else:
+        req.ik_request.robot_state.joint_state = initial_joint_state
     req.ik_request.avoid_collisions = True
     req.ik_request.pose_stamped = PoseStamped()
     req.ik_request.pose_stamped.pose = target_tcp_pose
@@ -251,7 +259,7 @@ def main() -> None:
     apply_collision_object_from_mesh(node)
     attach_hand(node)
     check_collision(node)
-    # send target pose1
+    # set target pose1
     msg = Pose()
     msg.orientation.w = -0.5
     msg.orientation.x = 0.5
@@ -260,23 +268,18 @@ def main() -> None:
     msg.position.x = -0.696
     msg.position.y = 0.052
     msg.position.z = 0.464
+    node.get_logger().info(f'target tcp pose : {msg}')
 
-    # get joint state for moving to the target pose1
-    # NOTE: This is a sample code for testing compute_ik client
-    # NOTE: It seems that IK is computed by using current joint state when the inputted joint state is null
-    msg1 = msg
-    msg2 = JointState()
-    target_joint_state = compute_ik(node, target_tcp_pose=msg1, initial_joint_state=msg2)
-    node.get_logger().info(f'target_joint_state : {target_joint_state}')
+    # get target joint state for moving from current pose to the target pose1
+    target_joint_state = compute_ik(node, target_tcp_pose=msg)
+    node.get_logger().info(f'target joint state : {target_joint_state}')
 
+    # send target pose1
     plan_execute_poses(node, msg)
 
     # get current pose of tcp
-    # NOTE: This is a sample code for testing compute_fk client
-    # NOTE: It seems that FK is computed by using current joint state when the inputted joint state is null
-    msg = JointState()
-    current_tcp_pose = compute_fk(node, joint_state=msg)
-    node.get_logger().info(f'current_tcp_pose : {current_tcp_pose}')
+    current_tcp_pose = compute_fk(node)
+    node.get_logger().info(f'current tcp pose : {current_tcp_pose}')
 
     # send target pose2
     msg = Pose()
