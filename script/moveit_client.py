@@ -51,8 +51,10 @@ def apply_collision_object(node, operation=CollisionObject.ADD):
     else:
         node.get_logger().info('success!')
 
+
 def apply_collision_object_from_mesh(node, operation=CollisionObject.ADD):
-    apply_collision_object_from_mesh_cli = node.create_client(ApplyCollisionObjectFromMesh, 'apply_collision_object_from_mesh')
+    apply_collision_object_from_mesh_cli = node.create_client(ApplyCollisionObjectFromMesh,
+                                                              'apply_collision_object_from_mesh')
     req = ApplyCollisionObjectFromMesh.Request()
     req.resource_path = 'package://hello_moveit/cad/shelf_rev5/type1_slid_shelf_change_1.STL'
     req.object_id = 'shelf'
@@ -77,10 +79,12 @@ def apply_collision_object_from_mesh(node, operation=CollisionObject.ADD):
     else:
         node.get_logger().info('success!')
 
+
 def attach_hand(node):
     attach_hand_cli = node.create_client(AttachHand, 'attach_hand')
     req = AttachHand.Request()
-    req.resource_path = 'package://hello_moveit/cad/robotiq_gripper/robotiq_2F_adaptive_gripper_rough.STL'
+    req.resource_path = 'package://hello_moveit/cad/robotiq_gripper/' \
+        'robotiq_2F_adaptive_gripper_rough.STL'
     req.object_id = 'robotiq_hand'
     req.scale = 0.001
     grab_pose = Pose()
@@ -120,6 +124,7 @@ def check_collision(node):
     else:
         node.get_logger().info('no collision')
 
+
 def detach_hand(node):
     detach_hand_cli = node.create_client(DetachHand, 'detach_hand')
     req = DetachHand.Request()
@@ -133,6 +138,7 @@ def detach_hand(node):
         node.get_logger().error('detach hand fail!!')
     else:
         node.get_logger().info('success!')
+
 
 def plan_execute_poses(node, pose):
     plan_execute_poses_cli = node.create_client(PlanExecutePoses, 'plan_execute_poses')
@@ -150,8 +156,10 @@ def plan_execute_poses(node, pose):
     else:
         node.get_logger().info('success!')
 
+
 def plan_execute_cartesian_path(node, poses):
-    plan_execute_cartesian_cli = node.create_client(PlanExecuteCartesianPath, 'plan_execute_cartesian_path')
+    plan_execute_cartesian_cli = node.create_client(PlanExecuteCartesianPath,
+                                                    'plan_execute_cartesian_path')
     req = PlanExecuteCartesianPath.Request()
     req.velocity_scale = 1.0  # you can chage this to slow down robot
     req.poses = poses
@@ -206,6 +214,7 @@ def main() -> None:
 
     node.destroy_node()
     rclpy.try_shutdown()
+
 
 if __name__ == '__main__':
     main()

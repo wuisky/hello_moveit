@@ -19,6 +19,7 @@ def generate_launch_description():
         ]),
         launch_arguments={
             'pointcloud.enable': 'true',
+            'align_depth.enable': 'true',
             # 'pose_fps' : '15',
             # 'rgb_camera.profile': '1280x720x30'
         }.items(),
