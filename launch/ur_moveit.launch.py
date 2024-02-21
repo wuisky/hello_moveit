@@ -267,7 +267,6 @@ def launch_setup(context, *args, **kwargs):
             'initial_joint_controller': 'joint_trajectory_controller',
             'use_fake_hardware': context.perform_substitution(use_fake_hardware),
             'launch_rviz': 'false',
-            'use_tool_communication': use_tool_communication
         }.items())
     nodes_to_start.append(launch_ur_bringup)
 
