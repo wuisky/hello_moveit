@@ -181,9 +181,7 @@ def compute_fk(
     req = GetPositionFK.Request()
     req.header.frame_id = 'base_link'
     req.fk_link_names = ['wrist_3_link']
-    if joint_state is None:
-        req.robot_state.joint_state = JointState()
-    else:
+    if joint_state:
         req.robot_state.joint_state = joint_state
     # wait connection to server
     while not compute_fk_cli.wait_for_service(timeout_sec=1.0):
@@ -228,9 +226,7 @@ def compute_ik(
     # initialize and substitute request
     req = GetPositionIK.Request()
     req.ik_request.group_name = 'ur_manipulator'
-    if initial_joint_state is None:
-        req.ik_request.robot_state.joint_state = JointState()
-    else:
+    if initial_joint_state:
         req.ik_request.robot_state.joint_state = initial_joint_state
     req.ik_request.avoid_collisions = True
     req.ik_request.pose_stamped = PoseStamped()
