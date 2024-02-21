@@ -84,7 +84,7 @@ def attach_hand(node):
     attach_hand_cli = node.create_client(AttachHand, 'attach_hand')
     req = AttachHand.Request()
     req.resource_path = ('package://hello_moveit/cad/robotiq_gripper/'
-                         'robotiq_2F_adaptve_gripper_rough.STL')
+                         'robotiq_2F_adaptive_gripper_rough.STL')
     req.object_id = 'robotiq_hand'
     req.scale = 0.001
     grab_pose = Pose()
