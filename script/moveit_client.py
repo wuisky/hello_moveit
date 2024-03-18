@@ -1,20 +1,44 @@
+"""
+Sample script to run Moveit clients
+"""
 import copy
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import rclpy
 from geometry_msgs.msg import Pose, PoseStamped
+from hello_moveit.msg import CollisionPair
 from hello_moveit.srv import (ApplyCollisionObject,
                               ApplyCollisionObjectFromMesh, AttachHand,
                               CheckCollision, DetachHand,
                               PlanExecuteCartesianPath, PlanExecutePoses)
 from moveit_msgs.msg import CollisionObject, MoveItErrorCodes
 from moveit_msgs.srv import GetPositionFK, GetPositionIK
+from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
+from std_msgs.msg import Byte, Int32
 
 
-def apply_collision_object(node, operation=CollisionObject.ADD):
-    apply_collision_object_cli = node.create_client(ApplyCollisionObject, 'apply_collision_object')
+def apply_collision_object(
+        node: Node,
+        operation: Byte = CollisionObject.ADD) -> bool:
+    """
+    ROS service client for applying object to the planning scene
+
+    Parameters
+    ----------
+    node: Node
+        Node which will receive server's responces
+    operation: Byte, default CollisionObject.ADD
+        Operation flag which you want to apply
+
+    Returns
+    -------
+    ret_code: bool
+        Result of calling ROS service
+    """
+    apply_collision_object_cli = node.create_client(ApplyCollisionObject,
+                                                    'apply_collision_object')
     obj = CollisionObject()
     obj.id = 'wall'
     obj.operation = operation
@@ -48,13 +72,31 @@ def apply_collision_object(node, operation=CollisionObject.ADD):
         node.get_logger().info('apply_collison_object service not ready, sleep 1sec')
     future = apply_collision_object_cli.call_async(req)
     rclpy.spin_until_future_complete(node, future)
-    if future.result().is_success is not True:
+    ret_code = future.result().is_success
+    if ret_code is not True:
         node.get_logger().error('apply object fail!!')
     else:
         node.get_logger().info('success!')
+    return ret_code
 
+def apply_collision_object_from_mesh(
+        node: Node,
+        operation: Byte = CollisionObject.ADD) -> bool:
+    """
+    ROS service client for applying object which is loaded from mesh file to the planning scene
 
-def apply_collision_object_from_mesh(node, operation=CollisionObject.ADD):
+    Parameters
+    ----------
+    node: Node
+        Node which will receive server's responces
+    operation: Byte, default CollisionObject.ADD
+        Operation flag which you want to apply
+
+    Returns
+    -------
+    ret_code: bool
+        Result of calling ROS service
+    """
     apply_collision_object_from_mesh_cli = node.create_client(ApplyCollisionObjectFromMesh,
                                                               'apply_collision_object_from_mesh')
     req = ApplyCollisionObjectFromMesh.Request()
@@ -76,13 +118,27 @@ def apply_collision_object_from_mesh(node, operation=CollisionObject.ADD):
         node.get_logger().info('appply_collision_object_from_mesh service not ready, sleep 1sec')
     future = apply_collision_object_from_mesh_cli.call_async(req)
     rclpy.spin_until_future_complete(node, future)
-    if future.result().is_success is not True:
+    ret_code = future.result().is_success
+    if ret_code is not True:
         node.get_logger().error('apply object from mesh fail!!')
     else:
         node.get_logger().info('success!')
+    return ret_code
 
+def attach_hand(node: Node) -> bool:
+    """
+    ROS service client for applying hand to tcp of the robot
 
-def attach_hand(node):
+    Parameters
+    ----------
+    node: Node
+        Node which will receive server's responces
+
+    Returns
+    -------
+    ret_code: bool
+        Result of calling ROS service
+    """
     attach_hand_cli = node.create_client(AttachHand, 'attach_hand')
     req = AttachHand.Request()
     req.resource_path = ('package://hello_moveit/cad/robotiq_gripper/'
@@ -99,13 +155,27 @@ def attach_hand(node):
         node.get_logger().info('attach hand service not ready, sleep 1sec')
     future = attach_hand_cli.call_async(req)
     rclpy.spin_until_future_complete(node, future)
-    if future.result().is_success is not True:
+    ret_code = future.result().is_success
+    if ret_code is not True:
         node.get_logger().error('attach hand fail!!')
     else:
         node.get_logger().info('success!')
+    return ret_code
 
+def check_collision(node: Node) -> List[CollisionPair]:
+    """
+    ROS service client for checking the collision between objects
+    
+    Parameters
+    ----------
+    node: Node
+        Node which will receive server's responces
 
-def check_collision(node):
+    Returns
+    -------
+    collision_pairs: List[CollisionPair]
+        List of names which are expected to collide each other
+    """
     check_collision_cli = node.create_client(CheckCollision, 'check_collision')
     req = CheckCollision.Request()
     js = JointState()
@@ -121,13 +191,27 @@ def check_collision(node):
         node.get_logger().info('check_collision service not ready, sleep 1sec')
     future = check_collision_cli.call_async(req)
     rclpy.spin_until_future_complete(node, future)
-    if future.result().collision_pairs:
-        node.get_logger().warn('\n'.join(f'{pairs}' for pairs in future.result().collision_pairs))
+    collision_pairs = future.result().collision_pairs
+    if collision_pairs:
+        node.get_logger().warn('\n'.join(f'{pairs}' for pairs in collision_pairs))
     else:
         node.get_logger().info('no collision')
+    return collision_pairs
 
+def detach_hand(node: Node) -> bool:
+    """
+    ROS service client for detaching hand of the robot
 
-def detach_hand(node):
+    Parameters
+    ----------
+    node: Node
+        Node which will receive server's responces
+
+    Returns
+    -------
+    ret_code: bool
+        Result of calling ROS service
+    """
     detach_hand_cli = node.create_client(DetachHand, 'detach_hand')
     req = DetachHand.Request()
     req.object_id = 'robotiq_hand'
@@ -136,13 +220,31 @@ def detach_hand(node):
         node.get_logger().info('detach hand service not ready, sleep 1sec')
     future = detach_hand_cli.call_async(req)
     rclpy.spin_until_future_complete(node, future)
-    if future.result().is_success is not True:
+    ret_code = future.result().is_success
+    if ret_code is not True:
         node.get_logger().error('detach hand fail!!')
     else:
         node.get_logger().info('success!')
+    return ret_code
 
+def plan_execute_poses(
+        node: Node,
+        pose: Pose) -> Int32:
+    """
+    ROS service client for planning to achieve the target pose of tcp
 
-def plan_execute_poses(node, pose):
+    Parameters
+    ----------
+    node: Node
+        Node which will receive server's responces
+    pose: Pose
+        Target tcp pose
+
+    Returns
+    -------
+    ret_code: Int32
+        Result of calling ROS service
+    """
     plan_execute_poses_cli = node.create_client(PlanExecutePoses, 'plan_execute_poses')
     req = PlanExecutePoses.Request()
     req.velocity_scale = 1.0  # you can chage this to slow down robot
@@ -153,13 +255,31 @@ def plan_execute_poses(node, pose):
 
     future = plan_execute_poses_cli.call_async(req)
     rclpy.spin_until_future_complete(node, future)
-    if future.result().err_code.val is not MoveItErrorCodes.SUCCESS:
+    ret_code = future.result().err_code.val
+    if ret_code is not MoveItErrorCodes.SUCCESS:
         node.get_logger().error(f'fail!!MoveItErrorCode: {future.result().err_code.val}')
     else:
         node.get_logger().info('success!')
+    return ret_code
 
+def plan_execute_cartesian_path(
+        node: Node,
+        poses: List[Pose]) -> bool:
+    """
+    ROS service client for planning to execute the cartesian path of tcp
 
-def plan_execute_cartesian_path(node, poses):
+    Parameters
+    ----------
+    node: Node
+        Node which will receive server's responces
+    pose: Pose
+        List of target tcp poses
+
+    Returns
+    -------
+    ret_code: bool
+        Result of calling ROS service
+    """
     plan_execute_cartesian_cli = node.create_client(PlanExecuteCartesianPath,
                                                     'plan_execute_cartesian_path')
     req = PlanExecuteCartesianPath.Request()
@@ -171,20 +291,22 @@ def plan_execute_cartesian_path(node, poses):
 
     future = plan_execute_cartesian_cli.call_async(req)
     rclpy.spin_until_future_complete(node, future)
-    if not future.result().is_success:
+    ret_code = future.result().is_success
+    if not ret_code:
         node.get_logger().error('faill cartesian_path')
     else:
         node.get_logger().info('success!')
+    return ret_code
 
 def compute_fk(
-    node,
-    joint_state: Optional[JointState] = None) -> Pose:
+    node: Node,
+    joint_state: Optional[JointState] = None) -> Optional[Pose]:
     """
     ROS service client for computing the forward kinematics
 
     Parameters
     ----------
-    node
+    node: Node
         Node which will receive server's responces
     joint_state: JointState
         Message which contains the joint states and names of the robot
@@ -194,6 +316,8 @@ def compute_fk(
     -------
     tcp_pose: Pose
         Tcp pose corresponding to the joint state
+    ret_code: Int32
+        Result of calling ROS service
     """
     # create service client (type, service name)
     compute_fk_cli = node.create_client(GetPositionFK, 'compute_fk')
@@ -210,9 +334,11 @@ def compute_fk(
     future = compute_fk_cli.call_async(req)
     rclpy.spin_until_future_complete(node, future) # wait until getting response
     rsp = future.result()
+    ret_code = rsp.error_code.val
     # check response
-    if rsp.error_code.val is not MoveItErrorCodes.SUCCESS:
+    if ret_code is not MoveItErrorCodes.SUCCESS:
         node.get_logger().error('fail to compute FK')
+        return None
     else:
         node.get_logger().info('success!')
     # show response
@@ -220,19 +346,19 @@ def compute_fk(
     return tcp_pose
 
 def compute_ik(
-    node, 
-    target_tcp_pose: Pose, 
-    initial_joint_state: Optional[JointState] = None) -> JointState:
+    node: Node,
+    target_tcp_pose: Pose,
+    initial_joint_state: Optional[JointState] = None) -> Optional[JointState]:
     """
     ROS service client for computing the inverse kinematics
 
     Parameters
     ----------
-    node
+    node: Node
         Node which will receive server's responces
     target_tcp_pose: Pose
         Desired tcp pose
-    initial_joint_state: JointState
+    initial_joint_state: Optional[JointState], default None
         Initial joint state of the robot which become a hint of computing the IK
         If the inputted joint state is empty, IK is computed by using the current joint_state
 
@@ -240,6 +366,8 @@ def compute_ik(
     -------
     target_joint_state: JointState
         Desired joint states to achieve the given tcp pose
+    ret_code: Int32
+        Result of calling ROS service
     """
     # create service client (type, service name)
     compute_ik_cli = node.create_client(GetPositionIK, 'compute_ik')
@@ -258,9 +386,11 @@ def compute_ik(
     future = compute_ik_cli.call_async(req)
     rclpy.spin_until_future_complete(node, future) # wait until getting response
     rsp = future.result()
+    ret_code = rsp.error_code.val
     # check response
-    if rsp.error_code.val is not MoveItErrorCodes.SUCCESS:
+    if ret_code is not MoveItErrorCodes.SUCCESS:
         node.get_logger().error('fail to compute IK')
+        return None
     else:
         node.get_logger().info('success!')
     # show response
@@ -268,6 +398,9 @@ def compute_ik(
     return target_joint_state
 
 def main() -> None:
+    """
+    Sample sequence of Moveit clients
+    """
     rclpy.init()
     node = rclpy.create_node('oreore')
 
@@ -319,7 +452,6 @@ def main() -> None:
 
     node.destroy_node()
     rclpy.try_shutdown()
-
 
 if __name__ == '__main__':
     main()
