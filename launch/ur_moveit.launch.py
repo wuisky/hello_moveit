@@ -523,10 +523,6 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument("launch_rviz", default_value="true", description="Launch RViz?"))
     declared_arguments.append(
-        DeclareLaunchArgument("handeye_calibration",
-                              default_value="False",
-                              description="Launch easy_handeye2_calibrationi?"))
-    declared_arguments.append(
         DeclareLaunchArgument("calibration_type",
                               default_value="",
                               description="easy_handeye2_calibration calibration type"))
