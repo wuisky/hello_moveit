@@ -300,7 +300,7 @@ def plan_execute_cartesian_path(
 
 def compute_fk(
     node: Node,
-    joint_state: Optional[JointState] = None) -> Tuple[Pose, Int32]:
+    joint_state: Optional[JointState] = None) -> Optional[Pose]:
     """
     ROS service client for computing the forward kinematics
 
@@ -338,16 +338,17 @@ def compute_fk(
     # check response
     if ret_code is not MoveItErrorCodes.SUCCESS:
         node.get_logger().error('fail to compute FK')
+        return None
     else:
         node.get_logger().info('success!')
     # show response
     tcp_pose = rsp.pose_stamped[0].pose
-    return tcp_pose, ret_code
+    return tcp_pose
 
 def compute_ik(
     node: Node,
     target_tcp_pose: Pose,
-    initial_joint_state: Optional[JointState] = None) -> Tuple[JointState, Int32]:
+    initial_joint_state: Optional[JointState] = None) -> Optional[JointState]:
     """
     ROS service client for computing the inverse kinematics
 
@@ -389,11 +390,12 @@ def compute_ik(
     # check response
     if ret_code is not MoveItErrorCodes.SUCCESS:
         node.get_logger().error('fail to compute IK')
+        return None
     else:
         node.get_logger().info('success!')
     # show response
     target_joint_state = rsp.solution.joint_state
-    return target_joint_state, ret_code
+    return target_joint_state
 
 def main() -> None:
     """
