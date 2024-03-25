@@ -69,7 +69,7 @@ def launch_setup(context, *args, **kwargs):
     use_sim_time = LaunchConfiguration("use_sim_time")
     launch_rviz = LaunchConfiguration("launch_rviz")
     use_realsense = LaunchConfiguration('use_realsense')
-    handeye_calibration = LaunchConfiguration('handeye_calibration')
+    calibration_type = LaunchConfiguration('calibration_type')
 
     hand = LaunchConfiguration('hand')
     # Enable use_tool_communication when the robotiq gripper is selected
@@ -267,27 +267,52 @@ def launch_setup(context, *args, **kwargs):
             'initial_joint_controller': 'joint_trajectory_controller',
             'use_fake_hardware': context.perform_substitution(use_fake_hardware),
             'launch_rviz': 'false',
-            'use_tool_communication': use_tool_communication
         }.items())
     nodes_to_start.append(launch_ur_bringup)
 
     ## include realsense2_camera
-    launch_realsense2_camera = IncludeLaunchDescription(
+    # hand camera
+    launch_hand_realsense2_camera = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([FindPackageShare('realsense2_camera'), 'launch', 'rs_launch.py'])
         ]),
         launch_arguments={
+            'camera_name': 'hand_camera',
             'pointcloud.enable': 'true',
-            # 'rgb_camera.profile': '1280x720x30'
+            'serial_no': '_128422272064',
+            'depth_module.profile': '1280x720x30',
+            'align_depth.enable': 'true'
         }.items(),
         condition=IfCondition(
                     PythonExpression([
-                    handeye_calibration,
+                    str(context.perform_substitution(calibration_type) == 'eye_in_hand'),
                     ' or ',
                     use_realsense
                 ])),
     )
-    nodes_to_start.append(launch_realsense2_camera)
+    nodes_to_start.append(launch_hand_realsense2_camera)
+
+    # base camera
+    launch_base_realsense2_camera = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([FindPackageShare('realsense2_camera'), 'launch', 'rs_launch.py'])
+        ]),
+        launch_arguments={
+            'camera_name': 'base_camera',
+            'pointcloud.enable': 'true',
+            'serial_no': '_832112072400',
+            'rgb_camera.profile': '1280x720x30',
+            'depth_module.profile': '1280x720x30',
+            'align_depth.enable': 'true'
+        }.items(),
+        condition=IfCondition(
+                    PythonExpression([
+                    str(context.perform_substitution(calibration_type) == 'eye_on_base'),
+                    ' or ',
+                    use_realsense
+                ])),
+    )
+    nodes_to_start.append(launch_base_realsense2_camera)
 
     ## include aruco recognition
     launch_aruco_recognition = IncludeLaunchDescription(PythonLaunchDescriptionSource([
@@ -304,7 +329,7 @@ def launch_setup(context, *args, **kwargs):
         }.items(),
         condition=IfCondition(
                     PythonExpression([
-                    handeye_calibration,
+                    str(context.perform_substitution(calibration_type) != ''),
                     ' or ',
                     use_realsense
                     ])
@@ -319,21 +344,22 @@ def launch_setup(context, *args, **kwargs):
         PathJoinSubstitution([FindPackageShare('easy_handeye2'), 'launch', 'calibrate.launch.py'])
     ]),
                                                     launch_arguments={
-                                                        'calibration_type': 'eye_in_hand',
+                                                        'calibration_type': context.perform_substitution(calibration_type),
                                                         'tracking_base_frame': context.perform_substitution(tracking_base_frame),
                                                         'tracking_marker_frame': f'aruco_marker_{calibration_marker}',
                                                         'robot_base_frame': 'base_link',
                                                         'robot_effector_frame': 'tool0',
-                                                        'name': 'easy_handeye2_demo_eih',
+                                                        'name': f'easy_handeye2_{context.perform_substitution(calibration_type)}',
                                                     }.items(),
-                                                    condition=IfCondition(handeye_calibration))
+                                                    condition=IfCondition(str(context.perform_substitution(calibration_type) != '')))
     easy_handeye2_delay = TimerAction(period=5.0, actions=[launch_easy_handeye2])
     nodes_to_start.append(easy_handeye2_delay)
 
     # static transform publisher
-    calibration_yaml = load_yaml("hello_moveit", "config/easy_handeye2_demo_eih.calib")
-    camera_tf_node = Node(package='tf2_ros', executable='static_transform_publisher', name='camera_tf_publisher',
-                          condition=IfCondition(PythonExpression(['not ', handeye_calibration, ' and ', use_realsense])),
+    # hand camera
+    calibration_yaml = load_yaml("hello_moveit", "config/easy_handeye2_eye_in_hand.calib")
+    hand_camera_tf_node = Node(package='tf2_ros', executable='static_transform_publisher', name='hand_camera_tf_publisher',
+                          condition=IfCondition(PythonExpression(['not ', str(calibration_type == 'eye_in_hand'), ' and ', use_realsense])),
                           arguments=[
                               "--x", str(calibration_yaml["transform"]["translation"]["x"]),
                               "--y", str(calibration_yaml["transform"]["translation"]["y"]),
@@ -346,8 +372,27 @@ def launch_setup(context, *args, **kwargs):
                               "--child-frame-id", calibration_yaml["parameters"]["tracking_base_frame"],
                             ],
                          )
-    camera_tf_node_delay = TimerAction(period=5.0, actions=[camera_tf_node])
-    nodes_to_start.append(camera_tf_node_delay)
+    hand_camera_tf_node_delay = TimerAction(period=5.0, actions=[hand_camera_tf_node])
+    nodes_to_start.append(hand_camera_tf_node_delay)
+
+    # base camera
+    calibration_yaml = load_yaml("hello_moveit", "config/easy_handeye2_eye_on_base.calib")
+    base_camera_tf_node = Node(package='tf2_ros', executable='static_transform_publisher', name='base_camera_tf_publisher',
+                          condition=IfCondition(PythonExpression(['not ', str(calibration_type == 'eye_on_base'), ' and ', use_realsense])),
+                          arguments=[
+                              "--x", str(calibration_yaml["transform"]["translation"]["x"]),
+                              "--y", str(calibration_yaml["transform"]["translation"]["y"]),
+                              "--z", str(calibration_yaml["transform"]["translation"]["z"]),
+                              "--qx", str(calibration_yaml["transform"]["rotation"]["x"]),
+                              "--qy", str(calibration_yaml["transform"]["rotation"]["y"]),
+                              "--qz", str(calibration_yaml["transform"]["rotation"]["z"]),
+                              "--qw", str(calibration_yaml["transform"]["rotation"]["w"]),
+                              "--frame-id", calibration_yaml["parameters"]["robot_base_frame"],
+                              "--child-frame-id", calibration_yaml["parameters"]["tracking_base_frame"],
+                            ],
+                         )
+    base_camera_tf_node_delay = TimerAction(period=5.0, actions=[base_camera_tf_node])
+    nodes_to_start.append(base_camera_tf_node_delay)
 
     ## robotiq 2f-140
     tool_communication_node = Node(
@@ -478,9 +523,9 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument("launch_rviz", default_value="true", description="Launch RViz?"))
     declared_arguments.append(
-        DeclareLaunchArgument("handeye_calibration",
-                              default_value="False",
-                              description="Launch easy_handeye2_calibrationi?"))
+        DeclareLaunchArgument("calibration_type",
+                              default_value="",
+                              description="easy_handeye2_calibration calibration type"))
     declared_arguments.append(
         DeclareLaunchArgument("use_realsense",
                               default_value="False",
