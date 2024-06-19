@@ -177,6 +177,8 @@ int main(int argc, char * argv[])
 
   // set velocity
   move_group_interface.setMaxVelocityScalingFactor(1.0);
+  move_group_interface.setMaxAccelerationScalingFactor(0.5);
+  move_group_interface.setPlanningTime(30.0);
 
   // Create a closure for updating the text in rviz
   auto const draw_title = [&moveit_visual_tools](std::string text) {
