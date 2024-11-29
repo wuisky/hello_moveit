@@ -44,7 +44,7 @@ from launch.substitutions import (Command, FindExecutable, LaunchConfiguration,
                                   PathJoinSubstitution, PythonExpression)
 from launch_ros.actions import Node, PushRosNamespace
 from launch_ros.substitutions import FindPackageShare
-from ur_moveit_config.launch_common import load_yaml
+from ur_moveit_config.launch_common import load_yaml, load_yaml_abs
 
 from launch import LaunchDescription
 
@@ -87,7 +87,7 @@ def launch_setup(context, *args, **kwargs):
     marker_id_list = LaunchConfiguration("marker_id_list")
 
     joint_limit_params = PathJoinSubstitution(
-        [FindPackageShare(description_package), "config", ur_type, "joint_limits.yaml"])
+        [FindPackageShare("hello_moveit"), "config", "joint_limits.yaml"])
     kinematics_params = PathJoinSubstitution(
         [FindPackageShare(description_package), "config", ur_type, "default_kinematics.yaml"])
     physical_params = PathJoinSubstitution(
@@ -162,21 +162,27 @@ def launch_setup(context, *args, **kwargs):
     robot_description_kinematics = PathJoinSubstitution(
         [FindPackageShare('hello_moveit'), "config", "kinematics.yaml"])
 
-    # robot_description_planning = {
-    # "robot_description_planning": load_yaml_abs(str(joint_limit_params.perform(context)))
-    # }
+    robot_description_planning = {
+    "robot_description_planning": load_yaml_abs(str(joint_limit_params.perform(context)))
+    }
 
-    # Planning Configuration
-    ompl_planning_pipeline_config = {
-        "move_group": {
+    planning_pipeline_config = {
+        "planning_pipelines": ["pilz_industrial_motion_planner", "ompl"],
+        "default_planning_pipeline": "pilz_industrial_motion_planner",
+        "pilz_industrial_motion_planner": {},
+        "ompl":{
             "planning_plugin": "ompl_interface/OMPLPlanner",
             "request_adapters":
             """default_planner_request_adapters/AddTimeOptimalParameterization default_planner_request_adapters/FixWorkspaceBounds default_planner_request_adapters/FixStartStateBounds default_planner_request_adapters/FixStartStateCollision default_planner_request_adapters/FixStartStatePathConstraints""",
-            "start_state_max_bounds_error": 0.1,
-        }
+            "start_state_max_bounds_error": 0.1},
+        # "robot_description_planning": {},
     }
+
     ompl_planning_yaml = load_yaml("ur_moveit_config", "config/ompl_planning.yaml")
-    ompl_planning_pipeline_config["move_group"].update(ompl_planning_yaml)
+    pilz_planning_yaml = load_yaml("hello_moveit", "config/pilz_industrial_motion_planner_planning.yaml")
+
+    planning_pipeline_config["ompl"].update(ompl_planning_yaml)
+    planning_pipeline_config["pilz_industrial_motion_planner"].update(pilz_planning_yaml)
 
     # Trajectory Execution Configuration
     controllers_yaml = load_yaml("ur_moveit_config", "config/controllers.yaml")
@@ -220,8 +226,8 @@ def launch_setup(context, *args, **kwargs):
             robot_description,
             robot_description_semantic,
             robot_description_kinematics,
-            # robot_description_planning,
-            ompl_planning_pipeline_config,
+            robot_description_planning,
+            planning_pipeline_config,
             trajectory_execution,
             moveit_controllers,
             planning_scene_monitor_parameters,
@@ -245,7 +251,7 @@ def launch_setup(context, *args, **kwargs):
         parameters=[
             robot_description,
             robot_description_semantic,
-            ompl_planning_pipeline_config,
+            planning_pipeline_config,
             robot_description_kinematics,
             # robot_description_planning,
             warehouse_ros_config,
