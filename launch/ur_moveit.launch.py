@@ -179,10 +179,13 @@ def launch_setup(context, *args, **kwargs):
     }
 
     ompl_planning_yaml = load_yaml("ur_moveit_config", "config/ompl_planning.yaml")
-    pilz_planning_yaml = load_yaml("hello_moveit", "config/pilz_industrial_motion_planner_planning.yaml")
+    pilz_planning_yaml = load_yaml("hello_moveit",
+                                   "config/pilz_industrial_motion_planner_planning.yaml")
+    pilz_cartesian_limits_yaml = load_yaml("hello_moveit", "config/pilz_cartesian_limits.yaml")
 
     planning_pipeline_config["ompl"].update(ompl_planning_yaml)
     planning_pipeline_config["pilz_industrial_motion_planner"].update(pilz_planning_yaml)
+    robot_description_planning["robot_description_planning"].update(pilz_cartesian_limits_yaml)
 
     # Trajectory Execution Configuration
     controllers_yaml = load_yaml("ur_moveit_config", "config/controllers.yaml")
