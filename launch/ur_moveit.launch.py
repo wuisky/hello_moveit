@@ -186,6 +186,10 @@ def launch_setup(context, *args, **kwargs):
     planning_pipeline_config["ompl"].update(ompl_planning_yaml)
     planning_pipeline_config["pilz_industrial_motion_planner"].update(pilz_planning_yaml)
     robot_description_planning["robot_description_planning"].update(pilz_cartesian_limits_yaml)
+    move_group_capabilities = {
+        "capabilities": "pilz_industrial_motion_planner/MoveGroupSequenceAction pilz_industrial_motion_planner/MoveGroupSequenceService"
+    }
+
 
     # Trajectory Execution Configuration
     controllers_yaml = load_yaml("ur_moveit_config", "config/controllers.yaml")
@@ -237,7 +241,8 @@ def launch_setup(context, *args, **kwargs):
             {
                 "use_sim_time": use_sim_time
             },
-            warehouse_ros_config,
+            # warehouse_ros_config,
+            move_group_capabilities,
         ],
     )
 
