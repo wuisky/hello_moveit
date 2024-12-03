@@ -1,6 +1,9 @@
 #include <moveit/move_group_interface/move_group_interface.h>
 #include <moveit/planning_scene_interface/planning_scene_interface.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
+#include <moveit_msgs/msg/motion_sequence_request.hpp>
+#include <moveit_msgs/msg/motion_sequence_item.hpp>
+#include <moveit_msgs/srv/get_motion_sequence.hpp>
 
 #include <geometric_shapes/shape_operations.h>
 
@@ -79,10 +82,12 @@ void planAndExecuteJointValue(
   [&]()->void {
     for (int i = retry; i > 0; i--) {
       if (move_group_interface.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS) {
-        char input;
-        std::cout << "Were you admitted? [y/n]" << std::endl;
-        std::cin >> input;
-        if (input == 'y') {
+        // char input;
+        // std::cout << "Were you admitted? [y/n]" << std::endl;
+        // std::cin >> input;
+        // if (input == 'y')
+        {
+
           {
             move_group_interface.execute(plan);
             return;
@@ -105,7 +110,7 @@ bool planAndExecutePose(
   move_group_interface.setPoseTarget(target_pose);
   prompt("Press 'next' in the RvizVisualToolsGui window to plan");
   draw_title("Planning");
-  //moveit_visual_tools.trigger();
+  //visual_tools.trigger();
   auto const [success, plan] = [&move_group_interface] {
       moveit::planning_interface::MoveGroupInterface::Plan msg;
       auto const ok = static_cast<bool>(move_group_interface.plan(msg));
@@ -115,15 +120,15 @@ bool planAndExecutePose(
   // Execute the plan
   if (success) {
     draw_trajectory_tool_path(plan.trajectory_);
-    //moveit_visual_tools.trigger();
+    //visual_tools.trigger();
     prompt("Press 'next' in the RvizVisualToolsGui window to execute");
     draw_title("Executing");
-    //moveit_visual_tools.trigger();
+    //visual_tools.trigger();
     move_group_interface.execute(plan);
     return true;
   } else {
     draw_title("Planning Failed!");
-    //moveit_visual_tools.trigger();
+    //visual_tools.trigger();
     return false;
   }
 }
@@ -140,6 +145,73 @@ void addCollisionObject(
   auto ret = planning_scene_interface.applyCollisionObject(collision_object);
   std::cout << "ret add obj:" << ret << std::endl;
 }
+
+moveit_msgs::msg::MotionSequenceItem createPositionRequest(
+  const std::string group_name,
+  const std::string link_name,
+  const geometry_msgs::msg::Pose target_pose,
+  const std::string pipeline_id,
+  const std::string planner_id,
+  const double blend_radius)
+{
+  moveit_msgs::msg::MotionSequenceItem seq_item;
+  moveit_msgs::msg::Constraints constraints;
+  moveit_msgs::msg::PositionConstraint position_constraint;
+  moveit_msgs::msg::OrientationConstraint orientation_constraint;
+
+  std_msgs::msg::Header header = std_msgs::msg::Header();
+
+  position_constraint.header = header;
+  position_constraint.header.frame_id = "world";
+  position_constraint.link_name = link_name;
+  // position_constraint.target_point_offset.x = target_pose.position.x;
+  // position_constraint.target_point_offset.y = target_pose.position.y;
+  // position_constraint.target_point_offset.z = target_pose.position.z;
+  // position_constraint.weight = 0.5;
+
+  shape_msgs::msg::SolidPrimitive constraint_volume;
+  constraint_volume.type = shape_msgs::msg::SolidPrimitive::BOX;
+  constraint_volume.dimensions.resize(3);
+  constraint_volume.dimensions[shape_msgs::msg::SolidPrimitive::BOX_X] = 0.0001;  // X軸の許容差
+  constraint_volume.dimensions[shape_msgs::msg::SolidPrimitive::BOX_Y] = 0.0001;  // Y軸の許容差
+  constraint_volume.dimensions[shape_msgs::msg::SolidPrimitive::BOX_Z] = 0.0001;  // Z軸の許容差
+
+  position_constraint.constraint_region.primitives.push_back(constraint_volume);
+  position_constraint.constraint_region.primitive_poses.push_back(target_pose);
+
+  constraints.position_constraints.push_back(position_constraint);
+
+  orientation_constraint.header = header;
+  orientation_constraint.header.frame_id = "world";
+  orientation_constraint.link_name = link_name;
+  orientation_constraint.orientation = target_pose.orientation;
+
+  orientation_constraint.absolute_x_axis_tolerance = 0.0001;    // X軸周りの許容回転誤差
+  orientation_constraint.absolute_y_axis_tolerance = 0.0001;    // Y軸周りの許容回転誤差
+  orientation_constraint.absolute_z_axis_tolerance = 0.0001;    // Z軸周りの許容回転誤差
+
+  // orientation_constraint.weight = 1.0;
+  constraints.orientation_constraints.push_back(orientation_constraint);
+
+
+  // リクエストアイテムに必要な情報を設定
+  seq_item.req.group_name = group_name;
+  seq_item.req.pipeline_id = pipeline_id;
+  seq_item.req.planner_id = planner_id;
+  seq_item.req.workspace_parameters = moveit_msgs::msg::WorkspaceParameters();
+  seq_item.req.workspace_parameters.header.frame_id = "world";
+  seq_item.req.start_state = moveit_msgs::msg::RobotState();
+  seq_item.req.max_velocity_scaling_factor = 0.1;
+  seq_item.req.max_acceleration_scaling_factor = 0.1;
+  seq_item.req.allowed_planning_time = 5.0;
+  seq_item.req.num_planning_attempts = 1;
+  seq_item.req.goal_constraints.push_back(constraints);
+  // ブレンド半径の設定
+  seq_item.blend_radius = blend_radius; // ここでブレンド半径を指定します。
+
+  return seq_item;
+}
+
 
 int main(int argc, char * argv[])
 {
@@ -162,46 +234,54 @@ int main(int argc, char * argv[])
 
   // Create the MoveIt MoveGroup Interface
   auto move_group_interface = MoveGroupInterface(node, arm_group);
-
+  move_group_interface.setPlanningPipelineId("ompl");
 
   // Construct and initialize MoveItVisualTools
-  auto moveit_visual_tools =
+  auto visual_tools =
     moveit_visual_tools::MoveItVisualTools{node, base_link,
     rviz_visual_tools::RVIZ_MARKER_TOPIC,
     move_group_interface.getRobotModel()};
-  moveit_visual_tools.deleteAllMarkers();
-  moveit_visual_tools.loadRemoteControl();
+  visual_tools.deleteAllMarkers();
+  visual_tools.loadRemoteControl();
+  Eigen::Isometry3d text_pose = Eigen::Isometry3d::Identity();
+  text_pose.translation().x() = -1.0;
+  namespace rvt = rviz_visual_tools;
+  visual_tools.publishText(text_pose, "MoveGroupInterface_Demo", rvt::WHITE, rvt::XLARGE);
+  // Batch publishing is used to reduce the number of messages being sent to RViz for large visualizations
+  visual_tools.trigger();
+  visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to start the demo");
+
 
   //auto robot_model = move_group_interface.getRobotModel();
 
-
   // set velocity
-  move_group_interface.setMaxVelocityScalingFactor(1.0);
+  move_group_interface.setMaxVelocityScalingFactor(0.5);
   move_group_interface.setMaxAccelerationScalingFactor(0.5);
   move_group_interface.setPlanningTime(30.0);
 
   // Create a closure for updating the text in rviz
-  auto const draw_title = [&moveit_visual_tools](std::string text) {
+  auto const draw_title = [&visual_tools](std::string text) {
       auto const text_pose = [] {
           auto msg = Eigen::Isometry3d::Identity();
           msg.translation().z() = 1.0;
           return msg;
         }();
-      moveit_visual_tools.publishText(
+      visual_tools.publishText(
         text_pose, text, rviz_visual_tools::WHITE,
         rviz_visual_tools::XLARGE);
-      moveit_visual_tools.trigger();
+      visual_tools.trigger();
     };
-  auto const prompt = [&moveit_visual_tools](std::string text) {
-      moveit_visual_tools.prompt(text);
-      moveit_visual_tools.trigger();
+  auto const prompt = [&visual_tools](std::string text) {
+      visual_tools.prompt(text);
+      visual_tools.trigger();
     };
   auto const draw_trajectory_tool_path =
-    [&moveit_visual_tools,
+    [&visual_tools,
       jmg = move_group_interface.getRobotModel()->getJointModelGroup(arm_group)](
+    // jmg = move_group_interface.getCurrentState()->getJointModelGroup(arm_group)](
     auto const trajectory) {
-      moveit_visual_tools.publishTrajectoryLine(trajectory, jmg);
-      moveit_visual_tools.trigger();
+      visual_tools.publishTrajectoryLine(trajectory, jmg);
+      visual_tools.trigger();
     };
 
   RCLCPP_INFO_STREAM(logger, "frame_id: " << move_group_interface.getPlanningFrame());
@@ -237,39 +317,39 @@ int main(int argc, char * argv[])
   }();
   ////////shelf///////
   // Create collision object for the robot to avoid
-  [&] {
-    moveit_msgs::msg::CollisionObject collision_object;
-    collision_object.id = "shelf";
-    // add mesh from stl
-    Eigen::Vector3d scale(0.001, 0.001, 0.001);
-    std::string resource = "package://hello_moveit/cad/shelf_rev5/type1_slid_shelf_change_1.STL";
-    // std::string resource = "package://hello_moveit/cad/new_shelf.stl";
-    // std::string resource = "package://hello_moveit/cad/2f-140.stl";
-    shapes::Mesh * m = shapes::createMeshFromResource(resource, scale);
-    shape_msgs::msg::Mesh co_mesh;
-    shapes::ShapeMsg co_mesh_msg;
-    shapes::constructMsgFromShape(m, co_mesh_msg);
-    co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
-    collision_object.meshes.push_back(co_mesh);
-    RCLCPP_INFO_STREAM(
-      logger,
-      "tra len:" << co_mesh.triangles.size() << ", verti len" << co_mesh.vertices.size() );
+  // [&] {
+  //   moveit_msgs::msg::CollisionObject collision_object;
+  //   collision_object.id = "shelf";
+  //   // add mesh from stl
+  //   Eigen::Vector3d scale(0.001, 0.001, 0.001);
+  //   std::string resource = "package://hello_moveit/cad/shelf_rev5/type1_slid_shelf_change_1.STL";
+  //   // std::string resource = "package://hello_moveit/cad/new_shelf.stl";
+  //   // std::string resource = "package://hello_moveit/cad/2f-140.stl";
+  //   shapes::Mesh * m = shapes::createMeshFromResource(resource, scale);
+  //   shape_msgs::msg::Mesh co_mesh;
+  //   shapes::ShapeMsg co_mesh_msg;
+  //   shapes::constructMsgFromShape(m, co_mesh_msg);
+  //   co_mesh = boost::get<shape_msgs::msg::Mesh>(co_mesh_msg);
+  //   collision_object.meshes.push_back(co_mesh);
+  //   RCLCPP_INFO_STREAM(
+  //     logger,
+  //     "tra len:" << co_mesh.triangles.size() << ", verti len" << co_mesh.vertices.size() );
 
-    auto const obj_pose = [] {
-        geometry_msgs::msg::Pose obj_pose;
-        obj_pose.orientation.w = 1.0;
-        obj_pose.orientation.x = 0.0;
-        obj_pose.orientation.y = 0.0;
-        obj_pose.orientation.z = 0.0;
-        obj_pose.position.x = -0.70932;
-        obj_pose.position.y = 0.43848;
-        obj_pose.position.z = -0.83605;
+  //   auto const obj_pose = [] {
+  //       geometry_msgs::msg::Pose obj_pose;
+  //       obj_pose.orientation.w = 1.0;
+  //       obj_pose.orientation.x = 0.0;
+  //       obj_pose.orientation.y = 0.0;
+  //       obj_pose.orientation.z = 0.0;
+  //       obj_pose.position.x = -0.70932;
+  //       obj_pose.position.y = 0.43848;
+  //       obj_pose.position.z = -0.83605;
 
-        return obj_pose;
-      }();
-    collision_object.mesh_poses.push_back(obj_pose);
-    addCollisionObject(move_group_interface, collision_object);
-  }();
+  //       return obj_pose;
+  //     }();
+  //   collision_object.mesh_poses.push_back(obj_pose);
+  //   addCollisionObject(move_group_interface, collision_object);
+  // }();
   ///////////attach hand///////////////////
   [&] {
     geometry_msgs::msg::Pose grab_pose;
@@ -469,31 +549,80 @@ int main(int argc, char * argv[])
     move_group_interface.getEndEffectorLink());
   RCLCPP_INFO_STREAM(logger, "tcp:\n " << end_effector_state.matrix());
   //////////////////////////
-  auto const target_pose2 = [] {
+
+  move_group_interface.setPlanningPipelineId("pilz_industrial_motion_planner");
+  move_group_interface.setPlannerId("PTP");
+
+  // auto const target_pose2 = [] {
+  auto target_pose2 = [] {
       geometry_msgs::msg::Pose msg;
       msg.orientation.w = -0.5;
       msg.orientation.x = 0.5;
       msg.orientation.y = 0.5;
       msg.orientation.z = -0.5;
       msg.position.x = -0.696;
-      msg.position.y = 0.0519;
-      msg.position.z = 0.154;
+      // msg.position.y = 0.052;
+      // msg.position.z = 0.154;
+      msg.position.y = 0.352;
+      msg.position.z = 0.464;
 
       return msg;
     }();
 
-  current_state = move_group_interface.getCurrentState(10);
-  current_state->copyJointGroupPositions(joint_model_group, seed_state);
-  ik_solver->getPositionIK(target_pose2, seed_state, solution, err_code);
-  //ik_solver->searchPositionIK(target_pose, seed_state, 0.05, solution, err_code);
+  // current_state = move_group_interface.getCurrentState(10);
+  // current_state->copyJointGroupPositions(joint_model_group, seed_state);
+  // ik_solver->getPositionIK(target_pose2, seed_state, solution, err_code);
+  // //ik_solver->searchPositionIK(target_pose, seed_state, 0.05, solution, err_code);
 
-  findClosestSolution(seed_state, joint_bonds, solution);
-  planAndExecuteJointValue(node, solution, 30, move_group_interface);
+  // findClosestSolution(seed_state, joint_bonds, solution);
+  // planAndExecuteJointValue(node, solution, 30, move_group_interface);
   // fk example
   current_state->setJointGroupActivePositions(joint_model_group, solution);
   auto end_effector_state2 = current_state->getGlobalLinkTransform(
     move_group_interface.getEndEffectorLink());
   RCLCPP_INFO_STREAM(logger, "tcp:\n " << end_effector_state2.matrix());
+  // pilz
+  moveit_msgs::msg::MotionSequenceRequest seq_req;
+  moveit_msgs::msg::MotionSequenceItem item;
+  // geometry_msgs::msg::Pose target_pose = target_pose2;
+  item = createPositionRequest(arm_group, "tool0", target_pose2, "pilz_industrial_motion_planner",
+                               "LIN", 0.1);
+  seq_req.items.push_back(item);
+
+  target_pose2.position.z -= 0.3;
+  item = createPositionRequest(arm_group, "tool0", target_pose2, "pilz_industrial_motion_planner",
+                               "LIN", 0.1);
+  seq_req.items.push_back(item);
+
+  target_pose2.position.y -= 0.3;
+  item = createPositionRequest(arm_group, "tool0", target_pose2, "pilz_industrial_motion_planner",
+                               "LIN", 0.0);
+  seq_req.items.push_back(item);
+
+  auto planning_client = node->create_client<moveit_msgs::srv::GetMotionSequence>(
+    "/plan_sequence_path");
+  auto request = std::make_shared<moveit_msgs::srv::GetMotionSequence::Request>();
+  request->request = seq_req;
+  auto future = planning_client->async_send_request(request);
+  if (future.wait_for(std::chrono::seconds(10)) == std::future_status::timeout) {
+    RCLCPP_INFO_STREAM(logger, "future not comeback ");
+  } else {
+    auto result = future.get();
+    RCLCPP_INFO_STREAM(logger, "plan ok size:" << result->response.planned_trajectories.size());
+
+    // draw_trajectory_tool_path(result->response.planned_trajectories[0]);
+
+    // Get the parent link of the end effector
+    const moveit::core::LinkModel * ee_parent_link =
+      joint_model_group->getLinkModel("wrist_3_link");
+    visual_tools.publishTrajectoryLine(result->response.planned_trajectories[0], ee_parent_link,
+    joint_model_group);
+
+    // visual_tools.publishTrajectoryLine(result->response.planned_trajectories[0], joint_model_group);
+    visual_tools.trigger();
+    prompt("Press 'next' in the RvizVisualToolsGui window to plan");
+    move_group_interface.execute(result->response.planned_trajectories[0]);
+  }
 
   // // remove shelf.
   // std::vector<std::string> object_ids;
@@ -501,14 +630,14 @@ int main(int argc, char * argv[])
   // moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
   // planning_scene_interface.removeCollisionObjects(object_ids);
 
-  //cartesian interp example
-  std::vector<geometry_msgs::msg::Pose> waypoints;
-  auto target_pose3(target_pose2);
-  target_pose3.position.y += 0.2;
-  waypoints.push_back(target_pose3);
-  target_pose3.position.y -= 0.2;
-  waypoints.push_back(target_pose3);
-  planAndExecuteCartesianPath(node, waypoints, 30, move_group_interface);
+  // //cartesian interp example
+  // std::vector<geometry_msgs::msg::Pose> waypoints;
+  // auto target_pose3(target_pose2);
+  // target_pose3.position.y += 0.2;
+  // waypoints.push_back(target_pose3);
+  // target_pose3.position.y -= 0.2;
+  // waypoints.push_back(target_pose3);
+  // planAndExecuteCartesianPath(node, waypoints, 30, move_group_interface);
 
   //  detachhand
   move_group_interface.detachObject("robotiq_hand");
