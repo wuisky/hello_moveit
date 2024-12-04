@@ -614,7 +614,7 @@ int main(int argc, char * argv[])
 
     // Get the parent link of the end effector
     const moveit::core::LinkModel * ee_parent_link =
-      joint_model_group->getLinkModel("wrist_3_link");
+      joint_model_group->getLinkModel(move_group_interface.getEndEffectorLink());
     visual_tools.publishTrajectoryLine(result->response.planned_trajectories[0], ee_parent_link,
     joint_model_group);
 
