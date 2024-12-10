@@ -4,6 +4,7 @@
 #include <moveit_msgs/msg/motion_sequence_request.hpp>
 #include <moveit_msgs/msg/motion_sequence_item.hpp>
 #include <moveit_msgs/srv/get_motion_sequence.hpp>
+#include <moveit/kinematic_constraints/utils.h>
 
 #include <geometric_shapes/shape_operations.h>
 
@@ -183,67 +184,74 @@ moveit_msgs::msg::MotionSequenceItem createPositionRequest(
   const std::string group_name,
   const std::string link_name,
   const geometry_msgs::msg::Pose target_pose,
-  const std::string pipeline_id,
   const std::string planner_id,
   const double blend_radius)
 {
-  moveit_msgs::msg::MotionSequenceItem seq_item;
+  moveit_msgs::msg::MotionSequenceItem item;
   moveit_msgs::msg::Constraints constraints;
   moveit_msgs::msg::PositionConstraint position_constraint;
-  moveit_msgs::msg::OrientationConstraint orientation_constraint;
+  // moveit_msgs::msg::OrientationConstraint orientation_constraint;
 
-  std_msgs::msg::Header header = std_msgs::msg::Header();
+  // std_msgs::msg::Header header = std_msgs::msg::Header();
 
-  position_constraint.header = header;
+  // position_constraint.header = header;
   position_constraint.header.frame_id = "world";
   position_constraint.link_name = link_name;
-  // position_constraint.target_point_offset.x = target_pose.position.x;
-  // position_constraint.target_point_offset.y = target_pose.position.y;
-  // position_constraint.target_point_offset.z = target_pose.position.z;
-  // position_constraint.weight = 0.5;
+  // // position_constraint.target_point_offset.x = target_pose.position.x;
+  // // position_constraint.target_point_offset.y = target_pose.position.y;
+  // // position_constraint.target_point_offset.z = target_pose.position.z;
+  // // position_constraint.weight = 0.5;
 
-  shape_msgs::msg::SolidPrimitive constraint_volume;
-  constraint_volume.type = shape_msgs::msg::SolidPrimitive::BOX;
-  constraint_volume.dimensions.resize(3);
-  constraint_volume.dimensions[shape_msgs::msg::SolidPrimitive::BOX_X] = 0.0001;  // X軸の許容差
-  constraint_volume.dimensions[shape_msgs::msg::SolidPrimitive::BOX_Y] = 0.0001;  // Y軸の許容差
-  constraint_volume.dimensions[shape_msgs::msg::SolidPrimitive::BOX_Z] = 0.0001;  // Z軸の許容差
+  // shape_msgs::msg::SolidPrimitive constraint_volume;
+  // constraint_volume.type = shape_msgs::msg::SolidPrimitive::BOX;
+  // constraint_volume.dimensions.resize(3);
+  // constraint_volume.dimensions[shape_msgs::msg::SolidPrimitive::BOX_X] = 0.0001;  // X軸の許容差
+  // constraint_volume.dimensions[shape_msgs::msg::SolidPrimitive::BOX_Y] = 0.0001;  // Y軸の許容差
+  // constraint_volume.dimensions[shape_msgs::msg::SolidPrimitive::BOX_Z] = 0.0001;  // Z軸の許容差
 
-  position_constraint.constraint_region.primitives.push_back(constraint_volume);
-  position_constraint.constraint_region.primitive_poses.push_back(target_pose);
+  // position_constraint.constraint_region.primitives.push_back(constraint_volume);
+  // position_constraint.constraint_region.primitive_poses.push_back(target_pose);
 
-  constraints.position_constraints.push_back(position_constraint);
+  // constraints.position_constraints.push_back(position_constraint);
 
-  orientation_constraint.header = header;
-  orientation_constraint.header.frame_id = "world";
-  orientation_constraint.link_name = link_name;
-  orientation_constraint.orientation = target_pose.orientation;
+  // orientation_constraint.header = header;
+  // orientation_constraint.header.frame_id = "world";
+  // orientation_constraint.link_name = link_name;
+  // orientation_constraint.orientation = target_pose.orientation;
 
-  orientation_constraint.absolute_x_axis_tolerance = 0.0001;    // X軸周りの許容回転誤差
-  orientation_constraint.absolute_y_axis_tolerance = 0.0001;    // Y軸周りの許容回転誤差
-  orientation_constraint.absolute_z_axis_tolerance = 0.0001;    // Z軸周りの許容回転誤差
+  // orientation_constraint.absolute_x_axis_tolerance = 0.0001;    // X軸周りの許容回転誤差
+  // orientation_constraint.absolute_y_axis_tolerance = 0.0001;    // Y軸周りの許容回転誤差
+  // orientation_constraint.absolute_z_axis_tolerance = 0.0001;    // Z軸周りの許容回転誤差
 
-  // orientation_constraint.weight = 1.0;
-  constraints.orientation_constraints.push_back(orientation_constraint);
+  // // orientation_constraint.weight = 1.0;
+  // constraints.orientation_constraints.push_back(orientation_constraint);
 
 
   // リクエストアイテムに必要な情報を設定
-  seq_item.req.group_name = group_name;
-  seq_item.req.pipeline_id = pipeline_id;
-  seq_item.req.planner_id = planner_id;
-  seq_item.req.workspace_parameters = moveit_msgs::msg::WorkspaceParameters();
-  seq_item.req.workspace_parameters.header.frame_id = "world";
-  // seq_item.req.start_state = moveit_msgs::msg::RobotState();
-  seq_item.req.max_velocity_scaling_factor = 0.05;
-  seq_item.req.max_acceleration_scaling_factor = 0.05;
-  seq_item.req.allowed_planning_time = 5.0;
-  seq_item.req.num_planning_attempts = 1;
-  // seq_item.req.goal_constraints.resize(1);
-  seq_item.req.goal_constraints.push_back(constraints);
+  item.req.group_name = group_name;
+  // item.req.pipeline_id = pipeline_id;
+  item.req.planner_id = planner_id;
+  // item.req.workspace_parameters = moveit_msgs::msg::WorkspaceParameters();
+  // item.req.workspace_parameters.header.frame_id = "world";
+  // item.req.start_state = moveit_msgs::msg::RobotState();
+  item.req.max_velocity_scaling_factor = 0.05;
+  item.req.max_acceleration_scaling_factor = 0.05;
+  item.req.allowed_planning_time = 5.0;
+  // item.req.num_planning_attempts = 1;
+  // item.req.goal_constraints.resize(1);
+  // item.req.goal_constraints.push_back(constraints);
   // ブレンド半径の設定
-  seq_item.blend_radius = blend_radius; // ここでブレンド半径を指定します。
+  item.blend_radius = blend_radius; // ここでブレンド半径を指定します。
+  auto stamped_target_pose = [&target_pose] {
+      geometry_msgs::msg::PoseStamped msg;
+      msg.header.frame_id = "world";
+      msg.pose = target_pose;
+      return msg;
+    }();
+  item.req.goal_constraints.push_back(
+      kinematic_constraints::constructGoalConstraints(link_name, stamped_target_pose));
 
-  return seq_item;
+  return item;
 }
 
 
@@ -269,6 +277,7 @@ int main(int argc, char * argv[])
   // Create the MoveIt MoveGroup Interface
   auto move_group_interface = MoveGroupInterface(node, arm_group);
   move_group_interface.setPlanningPipelineId("ompl");
+  const auto end_effect_name = move_group_interface.getEndEffectorLink();
 
   // Construct and initialize MoveItVisualTools
   auto visual_tools =
@@ -293,29 +302,29 @@ int main(int argc, char * argv[])
   move_group_interface.setPlanningTime(30.0);
 
   // Create a closure for updating the text in rviz
-  auto const draw_title = [&visual_tools](std::string text) {
-      auto const text_pose = [] {
-          auto msg = Eigen::Isometry3d::Identity();
-          msg.translation().z() = 1.0;
-          return msg;
-        }();
-      visual_tools.publishText(
-        text_pose, text, rviz_visual_tools::WHITE,
-        rviz_visual_tools::XLARGE);
-      visual_tools.trigger();
-    };
+  // auto const draw_title = [&visual_tools](std::string text) {
+  //     auto const text_pose = [] {
+  //         auto msg = Eigen::Isometry3d::Identity();
+  //         msg.translation().z() = 1.0;
+  //         return msg;
+  //       }();
+  //     visual_tools.publishText(
+  //       text_pose, text, rviz_visual_tools::WHITE,
+  //       rviz_visual_tools::XLARGE);
+  //     visual_tools.trigger();
+  //   };
   auto const prompt = [&visual_tools](std::string text) {
       visual_tools.prompt(text);
       visual_tools.trigger();
     };
-  auto const draw_trajectory_tool_path =
-    [&visual_tools,
-      jmg = move_group_interface.getRobotModel()->getJointModelGroup(arm_group)](
-    // jmg = move_group_interface.getCurrentState()->getJointModelGroup(arm_group)](
-    auto const trajectory) {
-      visual_tools.publishTrajectoryLine(trajectory, jmg);
-      visual_tools.trigger();
-    };
+  // auto const draw_trajectory_tool_path =
+  //   [&visual_tools,
+  //     jmg = move_group_interface.getRobotModel()->getJointModelGroup(arm_group)](
+  //   // jmg = move_group_interface.getCurrentState()->getJointModelGroup(arm_group)](
+  //   auto const trajectory) {
+  //     visual_tools.publishTrajectoryLine(trajectory, jmg);
+  //     visual_tools.trigger();
+  //   };
 
   RCLCPP_INFO_STREAM(logger, "frame_id: " << move_group_interface.getPlanningFrame());
   // Create collision object for the robot to avoid
@@ -629,17 +638,17 @@ int main(int argc, char * argv[])
     moveit_msgs::msg::MotionSequenceRequest seq_req;
     moveit_msgs::msg::MotionSequenceItem item;
     target_pose.position.y += 0.3;
-    item = createPositionRequest(arm_group, "tool0", target_pose, "pilz_industrial_motion_planner",
+    item = createPositionRequest(arm_group, end_effect_name, target_pose,
                                "LIN", 0.1);
     seq_req.items.push_back(item);
 
     target_pose.position.z -= 0.3;
-    item = createPositionRequest(arm_group, "tool0", target_pose, "pilz_industrial_motion_planner",
+    item = createPositionRequest(arm_group, end_effect_name, target_pose,
                                "LIN", 0.0);
     seq_req.items.push_back(item);
 
     // target_pose.position.y -= 0.3;
-    // item = createPositionRequest(arm_group, "tool0", target_pose, "pilz_industrial_motion_planner",
+    // item = createPositionRequest(arm_group, end_effect_name, target_pose,
     //                            "LIN", 0.0);
     // seq_req.items.push_back(item);
     planAndExecuteCatesianPoses(node, seq_req, joint_model_group, move_group_interface,
