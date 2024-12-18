@@ -19,6 +19,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
 find_package(ament_cmake REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 find_package(moveit_visual_tools REQUIRED)
+find_package(control_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
@@ -77,16 +78,15 @@ add_executable(moveit_sample src/hello_moveit.cpp)
 #   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 #   $<INSTALL_INTERFACE:include>)
 # target_compile_features(hello_moveit PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
-ament_target_dependencies(
-  moveit_sample
+ament_target_dependencies(moveit_sample
   moveit_ros_planning_interface
   moveit_visual_tools
   rclcpp
 )
 
 add_executable(hello_ur src/hello_ur.cpp)
-ament_target_dependencies(
-  hello_ur
+ament_target_dependencies(hello_ur
+  control_msgs
   moveit_ros_planning_interface
   moveit_visual_tools
   rclcpp
@@ -94,8 +94,7 @@ ament_target_dependencies(
 
 
 add_executable(moveit_client src/moveit_client.cpp)
-ament_target_dependencies(
-  moveit_client
+ament_target_dependencies(moveit_client
   moveit_ros_planning_interface
   moveit_visual_tools
   rclcpp
