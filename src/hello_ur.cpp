@@ -283,7 +283,8 @@ int main(int argc, char * argv[])
   // auto const logger = rclcpp::get_logger("hello_moveit");
   auto const logger = node->get_logger();
   const std::string arm_group = "ur_manipulator";
-  const std::string base_link = "base_link";
+  // const std::string base_link = "base_link";
+  const std::string base_link = "world";
 
   // We spin up a SingleThreadedExecutor for the current state monitor to get
   // information about the robot's state.
