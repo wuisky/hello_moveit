@@ -108,6 +108,9 @@ def launch_setup(context, *args, **kwargs):
         " ",
         "kinematics_params:=",
         kinematics_params,
+        # better to use calib data
+        # "kinematics_params:=",
+        # kinematics_params_str,
         " ",
         "physical_params:=",
         physical_params,
@@ -130,15 +133,15 @@ def launch_setup(context, *args, **kwargs):
         "ur_type:=",
         ur_type,
         " ",
-        "script_filename:=ros_control.urscript",
-        " ",
-        "input_recipe_filename:=rtde_input_recipe.txt",
-        " ",
-        "output_recipe_filename:=rtde_output_recipe.txt",
-        " ",
-        "prefix:=",
-        prefix,
-        " ",
+        # "script_filename:=ros_control.urscript",
+        # " ",
+        # "input_recipe_filename:=rtde_input_recipe.txt",
+        # " ",
+        # "output_recipe_filename:=rtde_output_recipe.txt",
+        # " ",
+        # "prefix:=",
+        # prefix,
+        # " ",
     ])
     robot_description = {"robot_description": robot_description_content}
 
@@ -263,7 +266,7 @@ def launch_setup(context, *args, **kwargs):
             planning_pipeline_config,
             robot_description_kinematics,
             # robot_description_planning,
-            warehouse_ros_config,
+            # warehouse_ros_config,
         ],
     )
 
@@ -533,7 +536,7 @@ def generate_launch_description():
             default_value='""',
             description="Prefix of the joint names, useful for \
         multi-robot setup. If changed than also joint names in the controllers' configuration \
-        have to be updated."                            ,
+        have to be updated.",
         ))
     declared_arguments.append(
         DeclareLaunchArgument("launch_rviz", default_value="true", description="Launch RViz?"))
