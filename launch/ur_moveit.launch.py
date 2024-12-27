@@ -239,7 +239,8 @@ def launch_setup(context, *args, **kwargs):
             moveit_controllers,
             planning_scene_monitor_parameters,
             {
-                "use_sim_time": use_sim_time
+                "use_sim_time": use_sim_time,
+                "publish_robot_description_semantic": True,
             },
             # warehouse_ros_config,
             move_group_capabilities,
