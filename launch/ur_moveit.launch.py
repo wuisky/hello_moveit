@@ -377,7 +377,7 @@ def launch_setup(context, *args, **kwargs):
     # hand camera
     calibration_yaml = load_yaml("hello_moveit", "config/easy_handeye2_eye_in_hand.calib")
     hand_camera_tf_node = Node(package='tf2_ros', executable='static_transform_publisher', name='hand_camera_tf_publisher',
-                          condition=IfCondition(PythonExpression(['not ', str(calibration_type == 'eye_in_hand'), ' and ', use_realsense])),
+                          condition=IfCondition(PythonExpression(['not ', str(calibration_type == 'eye_in_hand'), ' and ', use_realsense.perform(context)])),
                           arguments=[
                               "--x", str(calibration_yaml["transform"]["translation"]["x"]),
                               "--y", str(calibration_yaml["transform"]["translation"]["y"]),
@@ -396,7 +396,7 @@ def launch_setup(context, *args, **kwargs):
     # base camera
     calibration_yaml = load_yaml("hello_moveit", "config/easy_handeye2_eye_on_base.calib")
     base_camera_tf_node = Node(package='tf2_ros', executable='static_transform_publisher', name='base_camera_tf_publisher',
-                          condition=IfCondition(PythonExpression(['not ', str(calibration_type == 'eye_on_base'), ' and ', use_realsense])),
+                          condition=IfCondition(PythonExpression(['not ', str(calibration_type == 'eye_on_base'), ' and ', use_realsense.perform(context)])),
                           arguments=[
                               "--x", str(calibration_yaml["transform"]["translation"]["x"]),
                               "--y", str(calibration_yaml["transform"]["translation"]["y"]),
